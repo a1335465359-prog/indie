@@ -3,117 +3,162 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Indie Nav - 共创社区</title>
+<title>Indie Nav - V8</title>
 <!-- 引入 LeanCloud SDK -->
 <script src="https://cdn.jsdelivr.net/npm/leancloud-storage@4.15.0/dist/av-min.js"></script>
 <style>
     :root {
-        --bg-deep: #050714;
+        /* 默认极光黑主题变量 */
+        --bg-color: #050714;
         --text-primary: #ffffff;
         --text-secondary: rgba(255, 255, 255, 0.65);
         --glass-surface: rgba(30, 30, 35, 0.3);
         --glass-border: rgba(255, 255, 255, 0.1);
         --accent-color: #00d2ff;
-        --danger-color: #ff453a; /* 红色警告色 */
+        --sidebar-bg: rgba(20, 20, 25, 0.6);
+        --card-hover: rgba(255, 255, 255, 0.1);
         --radius-l: 16px;
         --font-stack: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
     }
 
+    /* --- 主题定制 --- */
+    /* 1. 红色主题 */
+    body.theme-red { --bg-color: #1a0505; --accent-color: #ff4d4d; --sidebar-bg: rgba(40, 10, 10, 0.6); }
+    body.theme-red .orb { filter: hue-rotate(140deg); } 
+
+    /* 2. 绿色主题 */
+    body.theme-green { --bg-color: #051a0a; --accent-color: #00ff88; --sidebar-bg: rgba(10, 40, 15, 0.6); }
+    body.theme-green .orb { filter: hue-rotate(260deg); }
+
+    /* 3. 白色主题 (反色) */
+    body.theme-white { 
+        --bg-color: #f2f2f7; 
+        --text-primary: #1d1d1f; 
+        --text-secondary: #86868b;
+        --glass-surface: rgba(255, 255, 255, 0.6);
+        --glass-border: rgba(0, 0, 0, 0.1);
+        --sidebar-bg: rgba(255, 255, 255, 0.7);
+        --accent-color: #007aff;
+        --card-hover: rgba(255,255,255, 0.9);
+    }
+    body.theme-white .orb { opacity: 0.6; filter: blur(100px); mix-blend-mode: multiply; }
+    body.theme-white .meteor-layer { display: none; } /* 白色背景不显示流星 */
+
+    /* 4. 星空主题 (纯黑+流星) */
+    body.theme-stars { --bg-color: #000000; }
+    body.theme-stars .orb { display: none; } /* 隐藏光球 */
+
+    /* 5. 线条主题 (网格) */
+    body.theme-lines { 
+        --bg-color: #0a0a0a; 
+        background-image: 
+            linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+        background-size: 30px 30px;
+    }
+    body.theme-lines .orb { display: none; }
+
     * { margin: 0; padding: 0; box-sizing: border-box; outline: none; -webkit-tap-highlight-color: transparent; user-select: none; }
     
     body {
-        background-color: var(--bg-deep);
+        background-color: var(--bg-color);
         font-family: var(--font-stack);
         height: 100vh;
         overflow: hidden;
         position: relative;
         color: var(--text-primary);
+        transition: background-color 0.5s ease, color 0.3s;
     }
 
-    /* --- 1. 极光背景 --- */
-    .aurora-layer { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; background: #020205; }
-    .orb { position: absolute; border-radius: 50%; filter: blur(80px); opacity: 0.4; mix-blend-mode: screen; }
+    /* 背景层 */
+    .aurora-layer { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+    .orb { position: absolute; border-radius: 50%; filter: blur(80px); opacity: 0.4; mix-blend-mode: screen; transition: filter 0.5s; }
     .orb-1 { width: 60vw; height: 60vw; background: radial-gradient(circle, #00ff9d 0%, transparent 60%); top: -20%; left: -20%; animation: breathe 10s infinite alternate; }
     .orb-2 { width: 50vw; height: 50vw; background: radial-gradient(circle, #bd00ff 0%, transparent 60%); bottom: -20%; right: -20%; animation: breathe 12s infinite alternate-reverse; }
     .orb-3 { width: 40vw; height: 40vw; background: radial-gradient(circle, #00b8ff 0%, transparent 60%); top: 30%; right: 20%; opacity: 0.2; }
     @keyframes breathe { 0% { opacity: 0.3; } 100% { opacity: 0.5; } }
 
-    /* --- 2. 门禁系统 --- */
+    .meteor-layer { position: absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:1; }
+    .meteor { position: absolute; width:120px; height:2px; background:linear-gradient(90deg, #fff, transparent); transform:rotate(-45deg); opacity:0; filter:drop-shadow(0 0 4px rgba(255,255,255,0.8)); }
+    @keyframes meteor-fly { 0%{opacity:1;transform:rotate(-45deg) translateX(0)} 100%{opacity:0;transform:rotate(-45deg) translateX(-600px)} }
+
+    /* 门禁 */
     .auth-overlay {
         position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999;
         background: rgba(5, 7, 20, 0.98);
         display: flex; flex-direction: column; align-items: center; justify-content: center;
         transition: opacity 0.5s ease;
     }
-    .auth-box {
-        background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
-        padding: 40px; border-radius: 24px; text-align: center; width: 320px;
-    }
-    .auth-input {
-        width: 100%; padding: 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.2);
-        background: rgba(0,0,0,0.4); color: #fff; font-size: 16px; text-align: center; margin: 20px 0;
-    }
-    .auth-btn {
-        width: 100%; padding: 14px; border-radius: 12px; border: none;
-        background: var(--accent-color); color: #000; font-weight: 800; cursor: pointer;
-    }
+    .auth-box { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); padding: 40px; border-radius: 24px; text-align: center; width: 320px; }
+    .auth-input { width: 100%; padding: 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.4); color: #fff; font-size: 16px; text-align: center; margin: 20px 0; }
+    .auth-btn { width: 100%; padding: 14px; border-radius: 12px; border: none; background: var(--accent-color); color: #000; font-weight: 800; cursor: pointer; }
 
-    /* --- 3. 主界面 --- */
+    /* 主界面 */
     .os-window { display: none; position: relative; z-index: 10; width: 100%; height: 100%; padding: 16px; gap: 16px; max-width: 1920px; margin: 0 auto; }
     
     .sidebar {
-        width: 220px; background: rgba(20, 20, 25, 0.6);
+        width: 220px; background: var(--sidebar-bg);
         border: 1px solid var(--glass-border); border-radius: var(--radius-l);
-        display: flex; flex-direction: column; padding: 20px 10px; flex-shrink: 0;
+        display: flex; flex-direction: column; padding: 20px 10px; flex-shrink: 0; backdrop-filter: blur(20px);
     }
     .logo {
         font-size: 18px; font-weight: 800; margin-bottom: 20px; padding-left: 12px;
-        background: linear-gradient(to right, #fff, #00d2ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        background: linear-gradient(to right, var(--text-primary), var(--accent-color)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     }
     .nav-group-label { font-size: 12px; font-weight: 600; color: var(--text-secondary); margin: 16px 0 6px 14px; }
     .nav-item {
-        padding: 10px 14px; margin-bottom: 2px; border-radius: 8px; font-size: 14px; color: rgba(255,255,255,0.8); cursor: pointer; transition: 0.1s;
+        padding: 10px 14px; margin-bottom: 2px; border-radius: 8px; font-size: 14px; color: var(--text-secondary); cursor: pointer; transition: 0.1s; display: flex; align-items: center; justify-content: space-between;
     }
-    .nav-item:hover { background: rgba(255,255,255,0.1); color: #fff; }
-    .nav-item.active { background: rgba(0, 210, 255, 0.15); color: #fff; font-weight: 600; border-left: 3px solid var(--accent-color); }
+    .nav-item:hover { background: var(--glass-border); color: var(--text-primary); }
+    .nav-item.active { background: rgba(0, 210, 255, 0.15); color: var(--text-primary); font-weight: 600; border-left: 3px solid var(--accent-color); }
     .nav-item[data-cat="shein"] { color: #ffe066; }
+    /* 白色主题下的 SHEIN 高亮修正 */
+    body.theme-white .nav-item[data-cat="shein"] { color: #d4a017; }
 
     .main-view {
-        flex: 1; background: rgba(0, 0, 0, 0.3);
+        flex: 1; background: var(--glass-surface); backdrop-filter: blur(30px);
         border: 1px solid var(--glass-border); border-radius: var(--radius-l);
         display: flex; flex-direction: column; overflow: hidden; position: relative;
     }
     .toolbar {
-        padding: 14px 24px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.06);
+        padding: 14px 24px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--glass-border);
     }
     .search-input {
-        width: 280px; padding: 8px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); font-size: 14px; color: #fff;
+        width: 280px; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--glass-border); background: rgba(128,128,128,0.1); font-size: 14px; color: var(--text-primary);
     }
-    .search-input:focus { background: rgba(0,0,0,0.4); border-color: var(--accent-color); }
+    .search-input:focus { background: rgba(128,128,128,0.2); border-color: var(--accent-color); }
     
+    /* 主题切换按钮 */
+    .theme-btn {
+        width: 32px; height: 32px; border-radius: 50%; background: var(--glass-border);
+        display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; font-size: 16px;
+    }
+    .theme-btn:hover { background: var(--accent-color); color: #000; }
+
     .scroll-content { flex: 1; overflow-y: auto; padding: 0 24px 40px 24px; }
     .scroll-content::-webkit-scrollbar { width: 6px; }
-    .scroll-content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 4px; }
+    .scroll-content::-webkit-scrollbar-thumb { background: var(--glass-border); border-radius: 4px; }
 
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
 
     .card {
         background: var(--glass-surface); border: 1px solid var(--glass-border); border-radius: 12px; height: 110px; padding: 14px;
         display: flex; flex-direction: column; justify-content: space-between; text-decoration: none; position: relative;
-        transition: transform 0.1s;
+        transition: transform 0.1s, background 0.2s;
     }
-    .card:hover { transform: translateY(-2px); background: rgba(255, 255, 255, 0.1); border-color: rgba(255, 255, 255, 0.3); }
+    .card:hover { transform: translateY(-2px); background: var(--card-hover); border-color: var(--accent-color); }
     .card.shein-card { border-color: rgba(255,215,0,0.2); }
     .card.shein-card .site-title { color: #ffe066; }
+    body.theme-white .card.shein-card .site-title { color: #d4a017; }
 
-    .site-title { font-size: 15px; font-weight: 600; color: #fff; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .site-url { font-size: 11px; color: rgba(255,255,255,0.4); font-family: monospace; }
+    .site-title { font-size: 15px; font-weight: 600; color: var(--text-primary); margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .site-url { font-size: 11px; color: var(--text-secondary); font-family: monospace; }
     .card-footer { display: flex; justify-content: space-between; align-items: center; }
     .tags-row { display: flex; gap: 4px; flex-wrap: wrap; flex: 1; overflow: hidden; height: 20px; }
-    .tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; background: rgba(0,0,0,0.3); color: #aaa; white-space: nowrap; }
+    .tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; background: rgba(128,128,128,0.2); color: var(--text-secondary); white-space: nowrap; }
     .tag.custom { color: var(--accent-color); background: rgba(0, 210, 255, 0.1); }
     .add-tag-btn { 
-        width: 20px; height: 20px; border-radius: 4px; background: rgba(255,255,255,0.1); color: #fff; border: none; 
+        width: 20px; height: 20px; border-radius: 4px; background: var(--glass-border); color: var(--text-primary); border: none; 
         cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; margin-left: 5px;
     }
     .add-tag-btn:hover { background: var(--accent-color); color: #000; }
@@ -124,14 +169,13 @@
         width: 50px; height: 50px; border-radius: 50%;
         background: var(--accent-color); color: #000; font-size: 30px;
         display: flex; align-items: center; justify-content: center;
-        box-shadow: 0 0 20px rgba(0, 210, 255, 0.4); cursor: pointer; z-index: 50;
+        box-shadow: 0 0 20px rgba(0,0,0,0.2); cursor: pointer; z-index: 50;
     }
     .fab-add:hover { transform: scale(1.1); background: #fff; }
 
-    /* 弹窗 */
     .modal-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:200; display:none; align-items:center; justify-content:center; }
-    .modal { background: #1a1a20; padding: 24px; border-radius: 16px; width: 380px; border: 1px solid rgba(255,255,255,0.2); }
-    .modal input, .modal select { width: 100%; padding: 12px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; border-radius: 8px; margin-bottom: 12px; }
+    .modal { background: #222; padding: 24px; border-radius: 16px; width: 380px; border: 1px solid rgba(255,255,255,0.2); color: #fff; }
+    .modal input, .modal select { width: 100%; padding: 12px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.1); color: #fff; border-radius: 8px; margin-bottom: 12px; }
     .modal-btn { width: 100%; padding: 12px; background: var(--accent-color); border: none; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 10px; }
 
     /* 右键菜单 */
@@ -140,9 +184,11 @@
     .ctx-item:hover { background: #333; color: #fff; }
     .ctx-divider { height: 1px; background: #444; margin: 4px 0; }
     
-    /* 删除按钮样式 (默认隐藏，仅管理员显示) */
-    .ctx-delete { color: var(--danger-color); display: none; }
-    .ctx-delete:hover { background: rgba(255, 69, 58, 0.15); }
+    .ctx-delete { color: #ff453a; display: none; }
+    .ctx-delete:hover { background: rgba(255, 69, 58, 0.2); }
+    
+    /* 只有管理员显示管理标签 */
+    .ctx-manage-tags { display: none; } 
 
     .star-row { display: flex; justify-content: center; gap: 5px; padding: 5px; }
     .star-btn { font-size: 18px; color: #555; cursor: pointer; }
@@ -172,6 +218,7 @@
         <div class="orb orb-1"></div>
         <div class="orb orb-2"></div>
         <div class="orb orb-3"></div>
+        <div class="meteor-layer" id="meteorLayer"></div>
     </div>
 
     <div class="os-window" id="mainWindow">
@@ -180,6 +227,7 @@
             
             <div class="nav-group-label">库</div>
             <div class="nav-item active" onclick="render('all', this)">全部网站</div>
+            <div class="nav-item" onclick="render('5star', this)">🌟 五星精选</div>
             <div class="nav-item" onclick="render('custom', this)">网友共创</div>
 
             <div class="nav-group-label">SHEIN</div>
@@ -203,7 +251,8 @@
         <main class="main-view">
             <div class="toolbar">
                 <input type="text" class="search-input" placeholder="搜索..." oninput="handleSearch(this.value)">
-                <div style="font-size:12px; color:rgba(255,255,255,0.4);" id="userStatus">访客模式</div>
+                <!-- 主题切换按钮 -->
+                <div class="theme-btn" onclick="toggleTheme()" title="切换主题">🎨</div>
             </div>
             <div class="scroll-content">
                 <div class="grid" id="grid"></div>
@@ -214,7 +263,7 @@
 
     <div class="modal-overlay" id="addModal">
         <div class="modal">
-            <h3 style="color:#fff; margin-bottom:15px;">添加新网站</h3>
+            <h3 style="margin-bottom:15px;">添加新网站</h3>
             <input id="newUrl" placeholder="网址 (https://...)" onblur="autoFillName()">
             <input id="newName" placeholder="网站名称">
             <input id="newTags" placeholder="标签 (逗号分隔)">
@@ -233,7 +282,7 @@
                 <option value="shein">SHEIN</option>
             </select>
             <button class="modal-btn" onclick="submitNewSite()">保存并同步</button>
-            <button class="modal-btn" style="background:rgba(255,255,255,0.1); color:#fff; margin-top:8px;" onclick="document.getElementById('addModal').style.display='none'">取消</button>
+            <button class="modal-btn" style="background:rgba(255,255,255,0.1); margin-top:8px;" onclick="document.getElementById('addModal').style.display='none'">取消</button>
         </div>
     </div>
 
@@ -241,12 +290,12 @@
         <div id="starInput" class="star-row"></div>
         <div class="ctx-divider"></div>
         <div class="ctx-item" onclick="renameSite()">✏️ 重命名</div>
-        <!-- 只有管理员可见 -->
+        <!-- 标签管理 -->
+        <div class="ctx-item ctx-manage-tags" id="btnTags" onclick="manageTags()">🏷️ 管理标签</div>
         <div class="ctx-item ctx-delete" id="btnDelete" onclick="deleteSite()">🗑 删除网站</div>
     </div>
 
 <script>
-    // --- 配置区 ---
     const LC_APP_ID = "MTbnlF1EcKYgifi6nWsjLK3v-MdYXbMMI";
     const LC_APP_KEY = "iPMUnJbKplRokq3h4SUPdpMT"; 
     const LC_SERVER_URL = "https://mtbnlf1e.api.lncldglobal.com";
@@ -255,21 +304,25 @@
     let localData = { sites: [] }; 
     let currentFilter = 'all';
     let targetUrl = null; 
-    let isAdmin = false; // 是否是管理员
+    let isAdmin = false; 
 
-    // --- 1. 登录逻辑 ---
+    // --- 主题系统 ---
+    const themes = ['', 'theme-red', 'theme-green', 'theme-white', 'theme-stars', 'theme-lines'];
+    let themeIdx = 0;
+    function toggleTheme() {
+        document.body.classList.remove(themes[themeIdx]);
+        themeIdx = (themeIdx + 1) % themes.length;
+        if(themes[themeIdx]) document.body.classList.add(themes[themeIdx]);
+    }
+
+    // --- 登录逻辑 ---
     function tryLogin() {
         const pwd = document.getElementById('accessKey').value;
-        const status = document.getElementById('userStatus');
-        
         if(pwd === "666") {
             isAdmin = false;
-            status.innerText = "用户模式 (不可删)";
             enterApp();
         } else if (pwd === "1335465359") {
             isAdmin = true;
-            status.innerText = "管理员模式 (可删/改)";
-            status.style.color = "#00d2ff";
             enterApp();
         } else {
             alert("密码错误");
@@ -288,9 +341,9 @@
     function initCloud() {
         AV.init({ appId: LC_APP_ID, appKey: LC_APP_KEY, serverURL: LC_SERVER_URL });
         fetchData();
+        startMeteorShower();
     }
 
-    // --- 2. 云端同步 ---
     async function fetchData() {
         try {
             const query = new AV.Query('GlobalData');
@@ -327,7 +380,6 @@
         await todo.save();
     }
 
-    // --- 3. 渲染 ---
     function render(filter, el) {
         currentFilter = filter;
         if(el) {
@@ -344,6 +396,9 @@
             if (filter === 'custom') {
                 const initialUrls = new Set(initialSites.map(s => s.u));
                 list = list.filter(s => s.c === 'custom' || !initialUrls.has(s.u));
+            } else if (filter === '5star') {
+                // 五星精选
+                list = list.filter(s => s.rating === 5);
             } else {
                 list = list.filter(s => s.c === filter);
             }
@@ -354,7 +409,6 @@
             list = list.filter(s => s.n.toLowerCase().includes(search) || (s.t && s.t.join('').toLowerCase().includes(search)));
         }
 
-        // 排序：最新在前，但差评(<=2)沉底
         list.reverse();
         list.sort((a, b) => {
             const rA = a.rating || 5;
@@ -393,12 +447,15 @@
                 targetUrl = item.u;
                 const menu = document.getElementById('ctxMenu');
                 
-                // 权限控制：只有管理员显示删除按钮
+                // 权限控制
                 const delBtn = document.getElementById('btnDelete');
+                const tagBtn = document.getElementById('btnTags');
                 if(isAdmin) {
                     delBtn.style.display = 'block';
+                    tagBtn.style.display = 'block';
                 } else {
                     delBtn.style.display = 'none';
+                    tagBtn.style.display = 'none';
                 }
 
                 const starDiv = document.getElementById('starInput');
@@ -423,7 +480,6 @@
         });
     }
 
-    // --- 4. 功能逻辑 ---
     function openAddModal() { document.getElementById('addModal').style.display = 'flex'; }
     
     function autoFillName() {
@@ -461,8 +517,8 @@
     }
 
     function deleteSite() {
-        if(!isAdmin) return; // 双重保险
-        if(confirm("确定删除此网站？(操作将同步给所有用户)")) {
+        if(!isAdmin) return; 
+        if(confirm("确定删除此网站？")) {
             localData.sites = localData.sites.filter(s => s.u !== targetUrl);
             pushData();
             render(currentFilter);
@@ -476,6 +532,23 @@
             const site = localData.sites.find(s => s.u === targetUrl);
             if(site) {
                 site.n = newName;
+                pushData();
+                render(currentFilter);
+            }
+            document.getElementById('ctxMenu').style.display = 'none';
+        }
+    }
+    
+    // 新增：管理标签功能 (管理员用)
+    function manageTags() {
+        if(!isAdmin) return;
+        const site = localData.sites.find(s => s.u === targetUrl);
+        if(site) {
+            const currentTags = (site.t || []).join(", ");
+            const newTagsStr = prompt("编辑标签 (逗号分隔，留空则清空):", currentTags);
+            if(newTagsStr !== null) {
+                // 如果用户点了取消(null)，不操作。如果清空内容，则是空数组。
+                site.t = newTagsStr.trim() ? newTagsStr.split(/,|，/).map(s=>s.trim()) : [];
                 pushData();
                 render(currentFilter);
             }
@@ -514,8 +587,21 @@
         }
     });
 
-    // 初始数据
+    function startMeteorShower() {
+        setInterval(() => {
+            if(document.body.classList.contains('theme-white')) return; // 白色主题不飘流星
+            const m = document.createElement('div');
+            m.className = 'meteor';
+            m.style.left = Math.random() * window.innerWidth + 'px';
+            m.style.top = Math.random() * window.innerHeight * 0.5 + 'px';
+            m.style.animation = `meteor-fly ${0.5+Math.random()}s linear`;
+            document.getElementById('meteorLayer').appendChild(m);
+            setTimeout(()=>m.remove(), 2000);
+        }, 1500);
+    }
+
     const initialSites = [
+        // SHEIN
         {n:"SHEIN 美国", u:"https://us.shein.com", t:["北美","总部"], c:"shein"},
         {n:"SHEIN 加拿大", u:"https://ca.shein.com", t:["北美","加元"], c:"shein"},
         {n:"SHEIN 墨西哥", u:"https://www.shein.com.mx", t:["拉美","西语"], c:"shein"},
@@ -551,6 +637,8 @@
         {n:"SHEIN EUR", u:"https://eur.shein.com", t:["欧盟","EUR"], c:"shein"},
         {n:"SHEIN EUQS", u:"https://euqs.shein.com", t:["欧盟"], c:"shein"},
         {n:"SHEIN ROE", u:"https://roe.shein.com", t:["全球"], c:"shein"},
+
+        // Young
         {n:"Easy Clothes", u:"https://www.easy-clothes.us", t:["美国","休闲"], c:"young"},
         {n:"Sungtin", u:"https://sungtin.com", t:["韩系","基础"], c:"young"},
         {n:"White Fox", u:"https://whitefoxboutique.com.au", t:["Y2K","辣妹"], c:"young"},
@@ -578,6 +666,8 @@
         {n:"Emery Rose", u:"https://www.shopemeryrose.com", t:["印花","平价"], c:"young"},
         {n:"MOTF", u:"https://www.shopmotf.com", t:["少淑","通勤"], c:"young"},
         {n:"Glassons", u:"https://www.glassons.com", t:["澳新","休闲"], c:"young"},
+
+        // Elegant
         {n:"Chicwish", u:"https://www.chicwish.com", t:["复古","甜美"], c:"elegant"},
         {n:"Coldwater Creek", u:"https://www.coldwatercreek.com", t:["成熟","自然"], c:"elegant"},
         {n:"Vici Collection", u:"https://www.vicicollection.com", t:["轻奢","通勤"], c:"elegant"},
@@ -599,6 +689,8 @@
         {n:"Orolay", u:"https://www.orolay.com", t:["羽绒"], c:"elegant"},
         {n:"Ritaros", u:"https://www.ritaros.com/es", t:["西班牙","礼服"], c:"elegant"},
         {n:"Vivaia", u:"https://www.vivaia.com", t:["环保鞋"], c:"elegant"},
+
+        // Sport
         {n:"Popilush", u:"https://www.popilush.com", t:["塑形"], c:"sport"},
         {n:"Oh Polly", u:"https://us.ohpolly.com", t:["瑜伽","紧身"], c:"sport"},
         {n:"OQQ", u:"https://oqq.com", t:["连体"], c:"sport"},
@@ -607,6 +699,8 @@
         {n:"Parthea", u:"https://www.azaleawang.com", t:["未来感"], c:"sport"},
         {n:"Dominnico", u:"https://dominnico.com", t:["秀场"], c:"sport"},
         {n:"Halara", u:"https://www.halara.com", t:["裙裤"], c:"sport"},
+
+        // Curve
         {n:"Fashion Nova", u:"https://www.fashionnova.com", t:["大码辣妹"], c:"curve"},
         {n:"BloomChic", u:"https://www.bloomchic.com", t:["大码","通勤"], c:"curve"},
         {n:"LovelyWholesale", u:"https://lovelywholesale.com", t:["曲线","街景"], c:"curve"},
@@ -629,6 +723,8 @@
         {n:"Empress J", u:"https://empressjboutique.com", t:["女王"], c:"curve"},
         {n:"Rosyella", u:"https://www.rosyella.com", t:["曲线"], c:"curve"},
         {n:"Ezcute", u:"https://ezcute.com", t:["派对"], c:"curve"},
+
+        // Fast
         {n:"NewChic", u:"https://www.newchic.com", t:["中老年","宽松"], c:"fast"},
         {n:"Zulily", u:"https://www.zulily.com", t:["家庭","折扣"], c:"fast"},
         {n:"FairySeason", u:"https://www.fairyseason.com", t:["平价","宽松"], c:"fast"},
@@ -666,6 +762,8 @@
         {n:"TB Dress", u:"https://www.tbdress.com", t:["礼服"], c:"fast"},
         {n:"Cotton On", u:"https://www.cottonon.com", t:["平价"], c:"fast"},
         {n:"Reserved", u:"https://www.reserved.com", t:["东欧"], c:"fast"},
+
+        // French
         {n:"PrettyLittleThing", u:"https://www.prettylittlething.us", t:["欧美辣妹"], c:"french"},
         {n:"Mango", u:"https://shop.mango.com", t:["简约"], c:"french"},
         {n:"SSENSE", u:"https://www.ssense.com", t:["设计师"], c:"french"},
@@ -681,6 +779,8 @@
         {n:"Petite Mendigote", u:"https://www.petitemendigote.com", t:["文艺"], c:"french"},
         {n:"Hello Moon", u:"https://www.hellomoon-shop.com/fr", t:["简约"], c:"french"},
         {n:"Minodusud", u:"https://www.minodusud.com/fr/pret-a-porter", t:["波西"], c:"french"},
+
+        // Euro
         {n:"Shopaholics Dream", u:"https://shopaholicsdream.pl", t:["快时尚"], c:"euro"},
         {n:"Andzela", u:"https://www.andzela.com", t:["平价"], c:"euro"},
         {n:"Milutka", u:"https://www.milutka.com", t:["立陶宛"], c:"euro"},
@@ -694,6 +794,8 @@
         {n:"So Italian", u:"https://www.soitalian.pl/pl", t:["意式"], c:"euro"},
         {n:"La Butik", u:"https://www.labutik.sklep.pl", t:["波兰"], c:"euro"},
         {n:"Elagia", u:"https://www.elagia.com", t:["西装"], c:"euro"},
+
+        // Gown
         {n:"Meshki", u:"https://www.meshki.com.au", t:["修身"], c:"gown"},
         {n:"Missord", u:"https://www.missord.com", t:["礼服"], c:"gown"},
         {n:"Faeriesty", u:"https://faeriesty.com", t:["派对"], c:"gown"},
@@ -709,10 +811,14 @@
         {n:"Jean Paul Gaultier", u:"https://fashion.jeanpaulgaultier.com", t:["解构"], c:"gown"},
         {n:"Ever-Pretty", u:"https://www.ever-pretty.com", t:["平价"], c:"gown"},
         {n:"Global Lover", u:"https://global-lover.com", t:["度假"], c:"gown"},
+
+        // Denim
         {n:"AngelHeart", u:"https://angelheartboutique.com/", t:["西部"], c:"denim"},
         {n:"Urban Outfitters", u:"https://www.urbanoutfitters.com", t:["工装"], c:"denim"},
         {n:"Ronner Design", u:"https://ronnerdesign.com", t:["骑马"], c:"denim"},
         {n:"Monster Valley", u:"https://www.monstervalley.com", t:["户外"], c:"denim"},
+
+        // Linen
         {n:"Airily", u:"https://airily.eu/en/", t:["欧洲"], c:"linen"},
         {n:"Soolinen", u:"https://soolinen.com", t:["文艺"], c:"linen"},
         {n:"Fantasy Linen", u:"https://www.fantasylinen.com", t:["手工"], c:"linen"},

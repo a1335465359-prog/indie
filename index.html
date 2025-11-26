@@ -3,74 +3,54 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Indie Nav - V9 Performance</title>
+<title>Indie Nav - V9.1 Fixed</title>
 <script src="https://cdn.jsdelivr.net/npm/leancloud-storage@4.15.0/dist/av-min.js"></script>
 <style>
     :root {
-        /* --- 核心变量定义 --- */
-        --bg-color: #050714; /* 背景色 */
+        /* --- 核心变量 --- */
+        --bg-color: #050714;
         --text-main: #ffffff;
         --text-sub: rgba(255, 255, 255, 0.65);
-        
-        /* 玻璃卡片 */
         --glass-bg: rgba(30, 30, 35, 0.3);
         --glass-border: rgba(255, 255, 255, 0.1);
         --card-hover: rgba(255, 255, 255, 0.15);
-        
-        /* 侧边栏 */
         --sidebar-bg: rgba(20, 20, 25, 0.6);
-        
-        /* 强调色 */
         --accent: #00d2ff;
-        
-        /* 光球颜色 (默认极光) */
-        --orb1: #00ff9d;
-        --orb2: #bd00ff;
-        --orb3: #00b8ff;
-        --blend-mode: screen; /* 混合模式 */
+        /* 光球变量 */
+        --orb1: #00ff9d; --orb2: #bd00ff; --orb3: #00b8ff;
+        --blend-mode: screen;
         --orb-opacity: 0.4;
     }
 
-    /* --- 🎨 主题配色方案 --- */
-
-    /* 1. 绯红 (Red) */
+    /* --- 🎨 主题定义 --- */
+    
+    /* 1. 绯红 */
     body.theme-red {
-        --bg-color: #1a0505;
-        --accent: #ff4d4d;
+        --bg-color: #1a0505; --accent: #ff4d4d;
         --orb1: #ff0000; --orb2: #ff8800; --orb3: #ff0055;
         --sidebar-bg: rgba(40, 10, 10, 0.6);
     }
-
-    /* 2. 幽绿 (Green) */
+    /* 2. 幽绿 */
     body.theme-green {
-        --bg-color: #021202;
-        --accent: #00ff88;
+        --bg-color: #021202; --accent: #00ff88;
         --orb1: #00ff00; --orb2: #adff2f; --orb3: #008000;
         --sidebar-bg: rgba(10, 30, 15, 0.6);
     }
-
-    /* 3. 纯白 (White) - 特殊处理混合模式 */
+    /* 3. 纯白 (反色模式) */
     body.theme-white {
-        --bg-color: #f5f5f7;
-        --text-main: #1d1d1f;
-        --text-sub: #86868b;
+        --bg-color: #f5f5f7; 
+        --text-main: #1d1d1f; --text-sub: #86868b;
         --glass-bg: rgba(255, 255, 255, 0.6);
         --glass-border: rgba(0, 0, 0, 0.1);
         --card-hover: #ffffff;
         --sidebar-bg: rgba(240, 240, 245, 0.7);
         --accent: #007aff;
-        /* 白色背景下，光球需要变暗才能看见 */
         --orb1: #007aff; --orb2: #5ac8fa; --orb3: #5856d6;
-        --blend-mode: multiply; /* 正片叠底 */
-        --orb-opacity: 0.15; /* 淡淡的 */
+        --blend-mode: multiply; /* 关键：正片叠底，否则白底上看不见光 */
+        --orb-opacity: 0.15;
     }
-
-    /* 4. 星空 (Stars) - 隐藏光球，显示星星 */
-    body.theme-stars {
-        --bg-color: #000000;
-        --orb-opacity: 0; /* 隐藏光球 */
-    }
-    /* 仅在星空模式下显示星星背景图 */
+    /* 4. 星空 (纯黑无光球) */
+    body.theme-stars { --bg-color: #000000; --orb-opacity: 0; }
     body.theme-stars::before {
         content: ""; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
         background-image: 
@@ -79,16 +59,12 @@
             radial-gradient(white, rgba(255,255,255,.1) 2px, transparent 3px);
         background-size: 550px 550px, 350px 350px, 250px 250px;
         background-position: 0 0, 40px 60px, 130px 270px;
-        z-index: -1; opacity: 0.8;
+        z-index: -1; opacity: 0.8; pointer-events: none;
     }
-
-    /* 5. 线条 (Lines) - 隐藏光球，显示网格 */
+    /* 5. 线条 (网格) */
     body.theme-lines {
-        --bg-color: #0a0a0a;
-        --orb-opacity: 0;
-        background-image: 
-            linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+        --bg-color: #0a0a0a; --orb-opacity: 0;
+        background-image: linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px);
         background-size: 40px 40px;
     }
 
@@ -98,49 +74,30 @@
     body {
         background-color: var(--bg-color);
         font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
-        height: 100vh;
-        overflow: hidden;
-        position: relative;
+        height: 100vh; overflow: hidden; position: relative;
         color: var(--text-main);
-        transition: background-color 0.5s ease, color 0.3s ease;
+        transition: background-color 0.6s ease, color 0.3s ease;
     }
 
-    /* --- 极光层 (性能优化版) --- */
+    /* --- 极光层 (修复点：去掉背景色) --- */
     .aurora-layer {
         position: fixed; top: 0; left: 0; width: 100%; height: 100%;
         z-index: 0; pointer-events: none; overflow: hidden;
-        /* 加上 3D 变换以开启 GPU 加速 */
-        transform: translate3d(0,0,0);
+        background: transparent; /* 这里必须透明，否则挡住 body 颜色 */
+        transform: translate3d(0,0,0); /* 开启 GPU */
     }
 
     .orb {
         position: absolute; border-radius: 50%;
-        filter: blur(60px); /* 降低模糊度减少GPU压力 */
-        opacity: var(--orb-opacity);
+        filter: blur(60px); opacity: var(--orb-opacity);
         mix-blend-mode: var(--blend-mode);
-        transition: background 1s ease, opacity 0.5s ease; /* 颜色切换时的过渡 */
-        will-change: transform; /* 告知浏览器优化 */
+        transition: background 1s ease, opacity 0.5s ease;
+        will-change: transform;
     }
 
-    /* 极其缓慢的移动，不涉及透明度变化 */
-    .orb-1 { 
-        width: 60vw; height: 60vw; 
-        background: radial-gradient(circle, var(--orb1) 0%, transparent 70%); 
-        top: -15%; left: -15%; 
-        animation: move1 20s infinite alternate ease-in-out;
-    }
-    .orb-2 { 
-        width: 50vw; height: 50vw; 
-        background: radial-gradient(circle, var(--orb2) 0%, transparent 70%); 
-        bottom: -15%; right: -15%; 
-        animation: move2 25s infinite alternate ease-in-out;
-    }
-    .orb-3 { 
-        width: 40vw; height: 40vw; 
-        background: radial-gradient(circle, var(--orb3) 0%, transparent 70%); 
-        top: 30%; left: 30%; 
-        animation: move3 30s infinite alternate ease-in-out;
-    }
+    .orb-1 { width: 60vw; height: 60vw; background: radial-gradient(circle, var(--orb1) 0%, transparent 70%); top: -15%; left: -15%; animation: move1 20s infinite alternate ease-in-out; }
+    .orb-2 { width: 50vw; height: 50vw; background: radial-gradient(circle, var(--orb2) 0%, transparent 70%); bottom: -15%; right: -15%; animation: move2 25s infinite alternate ease-in-out; }
+    .orb-3 { width: 40vw; height: 40vw; background: radial-gradient(circle, var(--orb3) 0%, transparent 70%); top: 30%; left: 30%; animation: move3 30s infinite alternate ease-in-out; }
 
     @keyframes move1 { 0% { transform: translate(0, 0); } 100% { transform: translate(20px, 20px); } }
     @keyframes move2 { 0% { transform: translate(0, 0); } 100% { transform: translate(-20px, -20px); } }
@@ -157,15 +114,14 @@
     .auth-input { width: 100%; padding: 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.4); color: #fff; font-size: 16px; text-align: center; margin: 20px 0; }
     .auth-btn { width: 100%; padding: 14px; border-radius: 12px; border: none; background: var(--accent); color: #000; font-weight: 800; cursor: pointer; }
 
-    /* 主界面布局 */
+    /* 布局 */
     .os-window { display: none; position: relative; z-index: 10; width: 100%; height: 100%; padding: 16px; gap: 16px; max-width: 1920px; margin: 0 auto; }
     
-    /* 侧边栏 */
     .sidebar {
         width: 220px; background: var(--sidebar-bg);
         border: 1px solid var(--glass-border); border-radius: 16px;
         display: flex; flex-direction: column; padding: 20px 10px; flex-shrink: 0;
-        backdrop-filter: blur(20px);
+        backdrop-filter: blur(20px); transition: background 0.5s;
     }
     .logo {
         font-size: 18px; font-weight: 800; margin-bottom: 20px; padding-left: 12px;
@@ -179,16 +135,14 @@
     }
     .nav-item:hover { background: var(--glass-border); color: var(--text-main); }
     .nav-item.active { background: rgba(0, 210, 255, 0.15); color: var(--text-main); font-weight: 600; border-left: 3px solid var(--accent); }
-    
-    /* SHEIN 特殊色 */
     .nav-item[data-cat="shein"] { color: #ffe066; }
     body.theme-white .nav-item[data-cat="shein"] { color: #d4a017; }
 
-    /* 主视图 */
     .main-view {
         flex: 1; background: var(--glass-bg); backdrop-filter: blur(30px);
         border: 1px solid var(--glass-border); border-radius: 16px;
         display: flex; flex-direction: column; overflow: hidden; position: relative;
+        transition: background 0.5s;
     }
     .toolbar {
         padding: 14px 24px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--glass-border);
@@ -199,7 +153,6 @@
     }
     .search-input:focus { background: rgba(128,128,128,0.2); border-color: var(--accent); }
     
-    /* 主题按钮 */
     .theme-btn {
         width: 32px; height: 32px; border-radius: 50%; background: var(--glass-border); color: var(--text-main);
         display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; font-size: 16px;
@@ -212,11 +165,10 @@
 
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
 
-    /* 卡片 */
     .card {
         background: var(--glass-surface); border: 1px solid var(--glass-border); border-radius: 12px; height: 110px; padding: 14px;
         display: flex; flex-direction: column; justify-content: space-between; text-decoration: none; position: relative;
-        transition: transform 0.1s, background 0.2s;
+        transition: transform 0.1s, background 0.2s, border-color 0.2s;
     }
     .card:hover { transform: translateY(-2px); background: var(--card-hover); border-color: var(--accent); }
     .card.shein-card { border-color: rgba(255,215,0,0.2); }
@@ -236,7 +188,6 @@
     .add-tag-btn:hover { background: var(--accent); color: #000; }
     .stars { color: #ffd700; font-size: 11px; letter-spacing: 1px; }
 
-    /* 添加按钮 */
     .fab-add {
         position: absolute; bottom: 30px; right: 30px;
         width: 50px; height: 50px; border-radius: 50%;
@@ -246,13 +197,11 @@
     }
     .fab-add:hover { transform: scale(1.1); background: #fff; }
 
-    /* 弹窗 */
     .modal-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:200; display:none; align-items:center; justify-content:center; }
     .modal { background: #222; padding: 24px; border-radius: 16px; width: 380px; border: 1px solid rgba(255,255,255,0.2); color: #fff; }
     .modal input, .modal select { width: 100%; padding: 12px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.1); color: #fff; border-radius: 8px; margin-bottom: 12px; }
     .modal-btn { width: 100%; padding: 12px; background: var(--accent); border: none; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 10px; }
 
-    /* 右键菜单 */
     .ctx-menu { position: fixed; background: #222; border: 1px solid #444; border-radius: 8px; padding: 5px; display: none; z-index: 100; box-shadow: 0 5px 15px rgba(0,0,0,0.5); width: 140px; }
     .ctx-item { padding: 8px; font-size: 13px; color: #ddd; cursor: pointer; border-radius: 4px; }
     .ctx-item:hover { background: #333; color: #fff; }
@@ -372,7 +321,6 @@
     let targetUrl = null; 
     let isAdmin = false; 
 
-    // --- 主题系统 (修复版) ---
     const themes = ['', 'theme-red', 'theme-green', 'theme-white', 'theme-stars', 'theme-lines'];
     let themeIdx = 0;
     function toggleTheme() {
@@ -381,7 +329,6 @@
         if(themes[themeIdx]) document.body.classList.add(themes[themeIdx]);
     }
 
-    // --- 登录 ---
     function tryLogin() {
         const pwd = document.getElementById('accessKey').value;
         if(pwd === "666") {

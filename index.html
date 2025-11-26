@@ -4,19 +4,18 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Indie Nav - 共创社区</title>
-<!-- 引入 LeanCloud SDK -->
-<script src="//code.bdstatic.com/npm/leancloud-storage@4.12.0/dist/av-min.js"></script>
+<!-- 引入 LeanCloud SDK (使用稳定CDN) -->
+<script src="https://cdn.jsdelivr.net/npm/leancloud-storage@4.15.0/dist/av-min.js"></script>
 <style>
     :root {
-        /* 极光色板 */
+        /* 极光色板 - 优化透明度减少卡顿 */
         --bg-deep: #050714;
         --text-primary: #ffffff;
         --text-secondary: rgba(255, 255, 255, 0.65);
-        --glass-surface: rgba(255, 255, 255, 0.06);
-        --glass-border: rgba(255, 255, 255, 0.12);
+        --glass-surface: rgba(30, 30, 35, 0.3); /* 降低透明度，提升性能 */
+        --glass-border: rgba(255, 255, 255, 0.1);
         --accent-color: #00d2ff;
-        --danger-color: #ff453a;
-        --radius-l: 20px;
+        --radius-l: 16px;
         --font-stack: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
     }
 
@@ -31,29 +30,26 @@
         color: var(--text-primary);
     }
 
-    /* --- 1. 极光与流星背景 --- */
+    /* --- 1. 静态化极光背景 (解决卡顿) --- */
     .aurora-layer { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; background: #020205; }
-    .orb { position: absolute; border-radius: 50%; filter: blur(90px); opacity: 0.5; mix-blend-mode: screen; animation: float 20s infinite ease-in-out; will-change: transform; }
-    .orb-1 { width: 60vw; height: 60vw; background: radial-gradient(circle, #00ff9d 0%, transparent 60%); top: -10%; left: -10%; }
-    .orb-2 { width: 50vw; height: 50vw; background: radial-gradient(circle, #bd00ff 0%, transparent 60%); bottom: -10%; right: -10%; animation-delay: -5s; }
-    .orb-3 { width: 45vw; height: 45vw; background: radial-gradient(circle, #00b8ff 0%, transparent 60%); top: 30%; left: 30%; animation-delay: -10s; }
-    @keyframes float { 0%,100%{transform:translate(0,0)} 50%{transform:translate(20px,20px)} }
-
-    .meteor-layer { position: absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:1; }
-    .meteor { position: absolute; width:120px; height:2px; background:linear-gradient(90deg, #fff, transparent); transform:rotate(-45deg); opacity:0; filter:drop-shadow(0 0 4px rgba(255,255,255,0.8)); }
-    @keyframes meteor-fly { 0%{opacity:1;transform:rotate(-45deg) translateX(0)} 100%{opacity:0;transform:rotate(-45deg) translateX(-600px)} }
+    /* 使用 opacity 动画代替 transform 动画，性能更好 */
+    .orb { position: absolute; border-radius: 50%; filter: blur(80px); opacity: 0.4; mix-blend-mode: screen; }
+    .orb-1 { width: 60vw; height: 60vw; background: radial-gradient(circle, #00ff9d 0%, transparent 60%); top: -20%; left: -20%; animation: breathe 10s infinite alternate; }
+    .orb-2 { width: 50vw; height: 50vw; background: radial-gradient(circle, #bd00ff 0%, transparent 60%); bottom: -20%; right: -20%; animation: breathe 12s infinite alternate-reverse; }
+    .orb-3 { width: 40vw; height: 40vw; background: radial-gradient(circle, #00b8ff 0%, transparent 60%); top: 30%; right: 20%; opacity: 0.2; }
+    
+    @keyframes breathe { 0% { opacity: 0.3; } 100% { opacity: 0.5; } }
 
     /* --- 2. 门禁系统 --- */
     .auth-overlay {
         position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999;
-        background: rgba(5, 7, 20, 0.9); backdrop-filter: blur(40px);
+        background: rgba(5, 7, 20, 0.98);
         display: flex; flex-direction: column; align-items: center; justify-content: center;
-        transition: opacity 0.6s ease;
+        transition: opacity 0.5s ease;
     }
     .auth-box {
-        background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.15);
-        padding: 40px; border-radius: 24px; text-align: center; width: 340px;
-        box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+        background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+        padding: 40px; border-radius: 24px; text-align: center; width: 320px;
     }
     .auth-input {
         width: 100%; padding: 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.2);
@@ -61,32 +57,31 @@
     }
     .auth-btn {
         width: 100%; padding: 14px; border-radius: 12px; border: none;
-        background: var(--accent-color); color: #000; font-weight: 800; cursor: pointer; transition: 0.2s;
+        background: var(--accent-color); color: #000; font-weight: 800; cursor: pointer;
     }
-    .auth-btn:hover { transform: scale(1.02); background: #fff; }
 
     /* --- 3. 主界面 --- */
     .os-window { display: none; position: relative; z-index: 10; width: 100%; height: 100%; padding: 16px; gap: 16px; max-width: 1920px; margin: 0 auto; }
     
     .sidebar {
-        width: 240px; background: rgba(15, 15, 20, 0.5); backdrop-filter: blur(20px);
+        width: 220px; background: rgba(20, 20, 25, 0.6);
         border: 1px solid var(--glass-border); border-radius: var(--radius-l);
         display: flex; flex-direction: column; padding: 20px 10px; flex-shrink: 0;
     }
     .logo {
-        font-size: 18px; font-weight: 800; margin-bottom: 20px; padding-left: 14px;
+        font-size: 18px; font-weight: 800; margin-bottom: 20px; padding-left: 12px;
         background: linear-gradient(to right, #fff, #00d2ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     }
     .nav-group-label { font-size: 12px; font-weight: 600; color: var(--text-secondary); margin: 16px 0 6px 14px; }
     .nav-item {
-        padding: 10px 14px; margin-bottom: 2px; border-radius: 10px; font-size: 14px; color: rgba(255,255,255,0.8); cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: space-between;
+        padding: 10px 14px; margin-bottom: 2px; border-radius: 8px; font-size: 14px; color: rgba(255,255,255,0.8); cursor: pointer; transition: 0.1s;
     }
     .nav-item:hover { background: rgba(255,255,255,0.1); color: #fff; }
-    .nav-item.active { background: rgba(0, 210, 255, 0.15); color: #fff; font-weight: 600; border: 1px solid rgba(0, 210, 255, 0.3); }
+    .nav-item.active { background: rgba(0, 210, 255, 0.15); color: #fff; font-weight: 600; border-left: 3px solid var(--accent-color); }
     .nav-item[data-cat="shein"] { color: #ffe066; }
 
     .main-view {
-        flex: 1; background: rgba(0, 0, 0, 0.2); backdrop-filter: blur(25px);
+        flex: 1; background: rgba(0, 0, 0, 0.3);
         border: 1px solid var(--glass-border); border-radius: var(--radius-l);
         display: flex; flex-direction: column; overflow: hidden; position: relative;
     }
@@ -94,59 +89,66 @@
         padding: 14px 24px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.06);
     }
     .search-input {
-        width: 280px; padding: 10px 16px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); font-size: 14px; color: #fff; transition: 0.3s;
+        width: 280px; padding: 8px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); font-size: 14px; color: #fff;
     }
     .search-input:focus { background: rgba(0,0,0,0.4); border-color: var(--accent-color); }
-    .status-bar { font-size: 12px; color: rgba(255,255,255,0.4); }
-
+    
     .scroll-content { flex: 1; overflow-y: auto; padding: 0 24px 40px 24px; }
-    .scroll-content::-webkit-scrollbar { width: 4px; }
-    .scroll-content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+    .scroll-content::-webkit-scrollbar { width: 6px; }
+    .scroll-content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 4px; }
 
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
 
     .card {
-        background: var(--glass-surface); border: 1px solid var(--glass-border); border-radius: 16px; height: 120px; padding: 14px;
+        background: var(--glass-surface); border: 1px solid var(--glass-border); border-radius: 12px; height: 110px; padding: 14px;
         display: flex; flex-direction: column; justify-content: space-between; text-decoration: none; position: relative;
-        transition: transform 0.2s ease, background 0.2s;
+        transition: transform 0.1s;
     }
-    .card:hover { transform: translateY(-4px); background: rgba(255, 255, 255, 0.12); border-color: rgba(255, 255, 255, 0.4); }
+    .card:hover { transform: translateY(-2px); background: rgba(255, 255, 255, 0.1); border-color: rgba(255, 255, 255, 0.3); }
     .card.shein-card { border-color: rgba(255,215,0,0.2); }
     .card.shein-card .site-title { color: #ffe066; }
 
-    .site-title { font-size: 15px; font-weight: 600; color: #fff; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .site-title { font-size: 15px; font-weight: 600; color: #fff; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .site-url { font-size: 11px; color: rgba(255,255,255,0.4); font-family: monospace; }
-    .card-footer { display: flex; justify-content: space-between; align-items: flex-end; }
-    .tags-row { display: flex; gap: 4px; flex-wrap: wrap; }
-    .tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; background: rgba(0,0,0,0.3); color: #aaa; }
+    
+    .card-footer { display: flex; justify-content: space-between; align-items: center; }
+    
+    .tags-row { display: flex; gap: 4px; flex-wrap: wrap; flex: 1; overflow: hidden; height: 20px; }
+    .tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; background: rgba(0,0,0,0.3); color: #aaa; white-space: nowrap; }
     .tag.custom { color: var(--accent-color); background: rgba(0, 210, 255, 0.1); }
+    
+    /* 加号按钮 */
+    .add-tag-btn { 
+        width: 20px; height: 20px; border-radius: 4px; background: rgba(255,255,255,0.1); color: #fff; border: none; 
+        cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; margin-left: 5px;
+    }
+    .add-tag-btn:hover { background: var(--accent-color); color: #000; }
+
     .stars { color: #ffd700; font-size: 11px; letter-spacing: 1px; }
 
     /* 悬浮按钮 */
     .fab-add {
         position: absolute; bottom: 30px; right: 30px;
-        width: 56px; height: 56px; border-radius: 50%;
+        width: 50px; height: 50px; border-radius: 50%;
         background: var(--accent-color); color: #000; font-size: 30px;
         display: flex; align-items: center; justify-content: center;
-        box-shadow: 0 0 20px rgba(0, 210, 255, 0.4); cursor: pointer; transition: 0.3s; z-index: 50;
+        box-shadow: 0 0 20px rgba(0, 210, 255, 0.4); cursor: pointer; z-index: 50;
     }
-    .fab-add:hover { transform: scale(1.1) rotate(90deg); background: #fff; }
+    .fab-add:hover { transform: scale(1.1); background: #fff; }
 
     /* 弹窗 */
-    .modal-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:200; display:none; align-items:center; justify-content:center; backdrop-filter: blur(5px); }
+    .modal-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:200; display:none; align-items:center; justify-content:center; }
     .modal { background: #1a1a20; padding: 24px; border-radius: 16px; width: 380px; border: 1px solid rgba(255,255,255,0.2); }
     .modal input, .modal select { width: 100%; padding: 12px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; border-radius: 8px; margin-bottom: 12px; }
     .modal-btn { width: 100%; padding: 12px; background: var(--accent-color); border: none; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 10px; }
 
     /* 右键菜单 */
-    .ctx-menu { position: fixed; background: rgba(20, 20, 25, 0.95); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.2); border-radius: 10px; padding: 6px; display: none; z-index: 100; box-shadow: 0 8px 30px rgba(0,0,0,0.6); width: 150px; }
-    .ctx-item { padding: 8px 12px; font-size: 13px; color: #ddd; cursor: pointer; border-radius: 6px; transition: 0.2s; }
-    .ctx-item:hover { background: rgba(255,255,255,0.1); color: #fff; }
-    .ctx-divider { height: 1px; background: rgba(255,255,255,0.1); margin: 4px 0; }
-    .ctx-delete { color: var(--danger-color); }
-    .ctx-delete:hover { background: rgba(255, 69, 58, 0.15); }
-    .star-row { display: flex; justify-content: center; gap: 4px; padding: 4px 0; }
-    .star-btn { font-size: 16px; color: #555; transition: 0.1s; cursor: pointer; }
+    .ctx-menu { position: fixed; background: #222; border: 1px solid #444; border-radius: 8px; padding: 5px; display: none; z-index: 100; box-shadow: 0 5px 15px rgba(0,0,0,0.5); width: 140px; }
+    .ctx-item { padding: 8px; font-size: 13px; color: #ddd; cursor: pointer; border-radius: 4px; }
+    .ctx-item:hover { background: #333; color: #fff; }
+    .ctx-divider { height: 1px; background: #444; margin: 4px 0; }
+    .star-row { display: flex; justify-content: center; gap: 5px; padding: 5px; }
+    .star-btn { font-size: 18px; color: #555; cursor: pointer; }
     .star-btn:hover, .star-btn.active { color: #ffd700; }
 
     @media (max-width: 900px) {
@@ -160,23 +162,24 @@
 </head>
 <body>
 
+    <!-- 1. 门禁 -->
     <div class="auth-overlay" id="authScreen">
         <div class="auth-box">
-            <h2 style="color:#fff; margin-bottom:10px;">Indie Nav 🔒</h2>
-            <p style="color:#aaa; font-size:13px; margin-bottom:20px;">共创社区 · 云端同步</p>
+            <h2 style="color:#fff; margin-bottom:10px;">Indie Nav</h2>
+            <p style="color:#aaa; font-size:13px; margin-bottom:20px;">共创社区 · 内部访问</p>
             <input type="password" class="auth-input" id="accessKey" placeholder="输入访问密钥">
-            <button class="auth-btn" onclick="tryLogin()">进入社区</button>
-            <div style="margin-top:20px; font-size:12px; color:#666; cursor:pointer;" onclick="alert('请联系管理员获取密钥')">申请访问权限</div>
+            <button class="auth-btn" onclick="tryLogin()">进入</button>
         </div>
     </div>
 
+    <!-- 2. 背景 -->
     <div class="aurora-layer">
         <div class="orb orb-1"></div>
         <div class="orb orb-2"></div>
         <div class="orb orb-3"></div>
-        <div class="meteor-layer" id="meteorLayer"></div>
     </div>
 
+    <!-- 3. 主界面 -->
     <div class="os-window" id="mainWindow">
         <nav class="sidebar">
             <div class="logo">Indie Nav Cloud</div>
@@ -206,7 +209,7 @@
         <main class="main-view">
             <div class="toolbar">
                 <input type="text" class="search-input" placeholder="搜索..." oninput="handleSearch(this.value)">
-                <div class="status-bar" id="syncStatus">等待连接...</div>
+                <div style="font-size:12px; color:rgba(255,255,255,0.4);" id="syncStatus">离线</div>
             </div>
             <div class="scroll-content">
                 <div class="grid" id="grid"></div>
@@ -215,6 +218,7 @@
         </main>
     </div>
 
+    <!-- 添加弹窗 -->
     <div class="modal-overlay" id="addModal">
         <div class="modal">
             <h3 style="color:#fff; margin-bottom:15px;">添加新网站</h3>
@@ -222,7 +226,6 @@
             <input id="newName" placeholder="网站名称">
             <input id="newTags" placeholder="标签 (逗号分隔)">
             <select id="newCat">
-                <option value="custom">-- 选择分类 (默认自定义) --</option>
                 <option value="young">年轻 / 辣妹</option>
                 <option value="elegant">轻熟 / 通勤</option>
                 <option value="sport">运动 / 潮牌</option>
@@ -234,21 +237,21 @@
                 <option value="fast">全球快时尚</option>
                 <option value="euro">欧洲 / 小众</option>
                 <option value="shein">SHEIN</option>
+                <option value="custom">其他 / 自定义</option>
             </select>
             <button class="modal-btn" onclick="submitNewSite()">保存并同步</button>
             <button class="modal-btn" style="background:rgba(255,255,255,0.1); color:#fff; margin-top:8px;" onclick="document.getElementById('addModal').style.display='none'">取消</button>
         </div>
     </div>
 
+    <!-- 右键菜单 (已移除删除功能) -->
     <div id="ctxMenu" class="ctx-menu">
         <div id="starInput" class="star-row"></div>
         <div class="ctx-divider"></div>
         <div class="ctx-item" onclick="renameSite()">✏️ 重命名</div>
-        <div class="ctx-item ctx-delete" onclick="deleteSite()">🗑 删除网站</div>
     </div>
 
 <script>
-    // --- 配置区 ---
     const ACCESS_PASSWORD = "666"; 
     const LC_APP_ID = "MTbnlF1EcKYgifi6nWsjLK3v-MdYXbMMI";
     const LC_APP_KEY = "iPMUnJbKplRokq3h4SUPdpMT"; 
@@ -259,7 +262,6 @@
     let currentFilter = 'all';
     let targetUrl = null; 
 
-    // --- 1. 初始化与登录 ---
     function tryLogin() {
         const pwd = document.getElementById('accessKey').value;
         if(pwd === ACCESS_PASSWORD) {
@@ -277,13 +279,11 @@
     function initCloud() {
         AV.init({ appId: LC_APP_ID, appKey: LC_APP_KEY, serverURL: LC_SERVER_URL });
         fetchData();
-        startMeteorShower();
     }
 
-    // --- 2. 云端同步 ---
     async function fetchData() {
         const status = document.getElementById('syncStatus');
-        status.innerText = "正在连接云端...";
+        status.innerText = "连接中...";
         try {
             const query = new AV.Query('GlobalData');
             const result = await query.first();
@@ -292,41 +292,37 @@
                 const cloudSites = result.get('sites');
                 if(cloudSites && cloudSites.length > 0) {
                     localData.sites = cloudSites;
-                    status.innerText = "已同步云端";
+                    status.innerText = "在线";
                 } else {
                     localData.sites = initialSites;
                     pushData();
                 }
             } else {
-                status.innerText = "初始化数据库...";
                 const GlobalData = AV.Object.extend('GlobalData');
                 const newData = new GlobalData();
                 newData.set('sites', initialSites);
                 const saved = await newData.save();
                 DB_ID = saved.id;
                 localData.sites = initialSites;
-                status.innerText = "初始化完成";
+                status.innerText = "在线";
             }
             render(currentFilter);
         } catch (error) {
             console.error(error);
-            status.innerText = "离线模式";
+            status.innerText = "离线";
             localData.sites = initialSites;
             render(currentFilter);
         }
     }
 
     async function pushData() {
-        const status = document.getElementById('syncStatus');
-        status.innerText = "正在保存...";
         if (!DB_ID) return;
         const todo = AV.Object.createWithoutData('GlobalData', DB_ID);
         todo.set('sites', localData.sites);
         await todo.save();
-        status.innerText = "所有更改已保存";
     }
 
-    // --- 3. 渲染 ---
+    // --- 核心渲染 (排序逻辑修改) ---
     function render(filter, el) {
         currentFilter = filter;
         if(el) {
@@ -337,11 +333,11 @@
         const grid = document.getElementById('grid');
         grid.innerHTML = '';
         
-        let list = localData.sites;
+        let list = [...localData.sites]; // 复制一份，避免污染原数据
         
+        // 1. 筛选
         if (filter !== 'all') {
             if (filter === 'custom') {
-                // 过滤出那些不在初始列表中，或者明确标记为 custom 的
                 const initialUrls = new Set(initialSites.map(s => s.u));
                 list = list.filter(s => s.c === 'custom' || !initialUrls.has(s.u));
             } else {
@@ -354,16 +350,33 @@
             list = list.filter(s => s.n.toLowerCase().includes(search) || (s.t && s.t.join('').toLowerCase().includes(search)));
         }
 
-        [...list].reverse().forEach(item => {
+        // 2. 排序逻辑 (核心修改)
+        // 规则：默认按添加时间倒序 (最新在前)，但是 1星和2星 强制沉底
+        list.reverse(); // 先把最新的放前面
+        
+        list.sort((a, b) => {
+            const rA = a.rating || 5; // 没打分的默认为5星(好)，不沉底
+            const rB = b.rating || 5;
+            
+            // 如果 A 是差评(<=2)，B 是好评(>2)，A 排在 B 后面 (返回1)
+            if (rA <= 2 && rB > 2) return 1;
+            // 如果 A 是好评，B 是差评，A 排在 B 前面 (返回-1)
+            if (rA > 2 && rB <= 2) return -1;
+            // 其他情况保持原顺序 (即最新的在前)
+            return 0; 
+        });
+
+        // 3. 渲染
+        list.forEach(item => {
             const card = document.createElement('a');
             card.className = item.c === 'shein' ? 'card shein-card' : 'card';
             card.href = item.u;
             card.target = "_blank";
             
+            // 修复：这里统一使用 item.t，防止 tags 混用
             const tags = item.t ? item.t.map(tag => `<span class="tag">${tag}</span>`).join('') : '';
             const domain = item.u.replace('https://','').replace('www.','').split('/')[0];
             
-            // 星星
             let stars = '';
             if(item.rating) {
                 for(let k=0; k<item.rating; k++) stars += '★';
@@ -377,6 +390,7 @@
                 </div>
                 <div class="card-footer">
                     <div class="tags-row">${tags}</div>
+                    <button class="add-tag-btn" onclick="addTag('${item.u}', event)">+</button>
                 </div>
             `;
             
@@ -385,7 +399,6 @@
                 targetUrl = item.u;
                 const menu = document.getElementById('ctxMenu');
                 
-                // 生成星星按钮
                 const starDiv = document.getElementById('starInput');
                 starDiv.innerHTML = '';
                 for(let i=1; i<=5; i++) {
@@ -408,7 +421,6 @@
         });
     }
 
-    // --- 4. 功能逻辑 ---
     function openAddModal() { document.getElementById('addModal').style.display = 'flex'; }
     
     function autoFillName() {
@@ -442,16 +454,7 @@
         document.getElementById('newName').value = '';
         document.getElementById('newTags').value = '';
         alert("添加成功！");
-        render('custom'); // 跳转到custom查看
-    }
-
-    function deleteSite() {
-        if(confirm("确定删除此网站？所有用户都将看不到它。")) {
-            localData.sites = localData.sites.filter(s => s.u !== targetUrl);
-            pushData();
-            render(currentFilter);
-            document.getElementById('ctxMenu').style.display = 'none';
-        }
+        render('custom'); 
     }
 
     function renameSite() {
@@ -472,7 +475,22 @@
         if(site) {
             site.rating = score;
             pushData();
-            render(currentFilter);
+            render(currentFilter); // 重新渲染，低分网站会自动沉底
+        }
+    }
+
+    // 修复添加标签的逻辑
+    function addTag(u, e) {
+        e.preventDefault(); e.stopPropagation();
+        const t = prompt("输入新标签:");
+        if(t) { 
+            const site = localData.sites.find(s => s.u === u);
+            if(site) {
+                if(!site.t) site.t = []; // 确保数组存在
+                site.t.push(t);
+                pushData();
+                render(currentFilter);
+            }
         }
     }
 
@@ -484,21 +502,8 @@
         }
     });
 
-    function startMeteorShower() {
-        setInterval(() => {
-            const m = document.createElement('div');
-            m.className = 'meteor';
-            m.style.left = Math.random() * window.innerWidth + 'px';
-            m.style.top = Math.random() * window.innerHeight * 0.5 + 'px';
-            m.style.animation = `meteor-fly ${0.5+Math.random()}s linear`;
-            document.getElementById('meteorLayer').appendChild(m);
-            setTimeout(()=>m.remove(), 2000);
-        }, 1500);
-    }
-
-    // --- 5. 初始数据 (已修正) ---
+    // 初始数据
     const initialSites = [
-        // SHEIN
         {n:"SHEIN 美国", u:"https://us.shein.com", t:["北美","总部"], c:"shein"},
         {n:"SHEIN 加拿大", u:"https://ca.shein.com", t:["北美","加元"], c:"shein"},
         {n:"SHEIN 墨西哥", u:"https://www.shein.com.mx", t:["拉美","西语"], c:"shein"},
@@ -534,8 +539,6 @@
         {n:"SHEIN EUR", u:"https://eur.shein.com", t:["欧盟","EUR"], c:"shein"},
         {n:"SHEIN EUQS", u:"https://euqs.shein.com", t:["欧盟"], c:"shein"},
         {n:"SHEIN ROE", u:"https://roe.shein.com", t:["全球"], c:"shein"},
-
-        // Young
         {n:"Easy Clothes", u:"https://www.easy-clothes.us", t:["美国","休闲"], c:"young"},
         {n:"Sungtin", u:"https://sungtin.com", t:["韩系","基础"], c:"young"},
         {n:"White Fox", u:"https://whitefoxboutique.com.au", t:["Y2K","辣妹"], c:"young"},
@@ -563,8 +566,6 @@
         {n:"Emery Rose", u:"https://www.shopemeryrose.com", t:["印花","平价"], c:"young"},
         {n:"MOTF", u:"https://www.shopmotf.com", t:["少淑","通勤"], c:"young"},
         {n:"Glassons", u:"https://www.glassons.com", t:["澳新","休闲"], c:"young"},
-
-        // Elegant
         {n:"Chicwish", u:"https://www.chicwish.com", t:["复古","甜美"], c:"elegant"},
         {n:"Coldwater Creek", u:"https://www.coldwatercreek.com", t:["成熟","自然"], c:"elegant"},
         {n:"Vici Collection", u:"https://www.vicicollection.com", t:["轻奢","通勤"], c:"elegant"},
@@ -586,8 +587,6 @@
         {n:"Orolay", u:"https://www.orolay.com", t:["羽绒"], c:"elegant"},
         {n:"Ritaros", u:"https://www.ritaros.com/es", t:["西班牙","礼服"], c:"elegant"},
         {n:"Vivaia", u:"https://www.vivaia.com", t:["环保鞋"], c:"elegant"},
-
-        // Sport
         {n:"Popilush", u:"https://www.popilush.com", t:["塑形"], c:"sport"},
         {n:"Oh Polly", u:"https://us.ohpolly.com", t:["瑜伽","紧身"], c:"sport"},
         {n:"OQQ", u:"https://oqq.com", t:["连体"], c:"sport"},
@@ -596,8 +595,6 @@
         {n:"Parthea", u:"https://www.azaleawang.com", t:["未来感"], c:"sport"},
         {n:"Dominnico", u:"https://dominnico.com", t:["秀场"], c:"sport"},
         {n:"Halara", u:"https://www.halara.com", t:["裙裤"], c:"sport"},
-
-        // Curve
         {n:"Fashion Nova", u:"https://www.fashionnova.com", t:["大码辣妹"], c:"curve"},
         {n:"BloomChic", u:"https://www.bloomchic.com", t:["大码","通勤"], c:"curve"},
         {n:"LovelyWholesale", u:"https://lovelywholesale.com", t:["曲线","街景"], c:"curve"},
@@ -620,8 +617,6 @@
         {n:"Empress J", u:"https://empressjboutique.com", t:["女王"], c:"curve"},
         {n:"Rosyella", u:"https://www.rosyella.com", t:["曲线"], c:"curve"},
         {n:"Ezcute", u:"https://ezcute.com", t:["派对"], c:"curve"},
-
-        // Fast
         {n:"NewChic", u:"https://www.newchic.com", t:["中老年","宽松"], c:"fast"},
         {n:"Zulily", u:"https://www.zulily.com", t:["家庭","折扣"], c:"fast"},
         {n:"FairySeason", u:"https://www.fairyseason.com", t:["平价","宽松"], c:"fast"},
@@ -659,8 +654,6 @@
         {n:"TB Dress", u:"https://www.tbdress.com", t:["礼服"], c:"fast"},
         {n:"Cotton On", u:"https://www.cottonon.com", t:["平价"], c:"fast"},
         {n:"Reserved", u:"https://www.reserved.com", t:["东欧"], c:"fast"},
-
-        // French
         {n:"PrettyLittleThing", u:"https://www.prettylittlething.us", t:["欧美辣妹"], c:"french"},
         {n:"Mango", u:"https://shop.mango.com", t:["简约"], c:"french"},
         {n:"SSENSE", u:"https://www.ssense.com", t:["设计师"], c:"french"},
@@ -676,8 +669,6 @@
         {n:"Petite Mendigote", u:"https://www.petitemendigote.com", t:["文艺"], c:"french"},
         {n:"Hello Moon", u:"https://www.hellomoon-shop.com/fr", t:["简约"], c:"french"},
         {n:"Minodusud", u:"https://www.minodusud.com/fr/pret-a-porter", t:["波西"], c:"french"},
-
-        // Euro
         {n:"Shopaholics Dream", u:"https://shopaholicsdream.pl", t:["快时尚"], c:"euro"},
         {n:"Andzela", u:"https://www.andzela.com", t:["平价"], c:"euro"},
         {n:"Milutka", u:"https://www.milutka.com", t:["立陶宛"], c:"euro"},
@@ -691,8 +682,6 @@
         {n:"So Italian", u:"https://www.soitalian.pl/pl", t:["意式"], c:"euro"},
         {n:"La Butik", u:"https://www.labutik.sklep.pl", t:["波兰"], c:"euro"},
         {n:"Elagia", u:"https://www.elagia.com", t:["西装"], c:"euro"},
-
-        // Gown
         {n:"Meshki", u:"https://www.meshki.com.au", t:["修身"], c:"gown"},
         {n:"Missord", u:"https://www.missord.com", t:["礼服"], c:"gown"},
         {n:"Faeriesty", u:"https://faeriesty.com", t:["派对"], c:"gown"},
@@ -708,14 +697,10 @@
         {n:"Jean Paul Gaultier", u:"https://fashion.jeanpaulgaultier.com", t:["解构"], c:"gown"},
         {n:"Ever-Pretty", u:"https://www.ever-pretty.com", t:["平价"], c:"gown"},
         {n:"Global Lover", u:"https://global-lover.com", t:["度假"], c:"gown"},
-
-        // Denim
         {n:"AngelHeart", u:"https://angelheartboutique.com/", t:["西部"], c:"denim"},
         {n:"Urban Outfitters", u:"https://www.urbanoutfitters.com", t:["工装"], c:"denim"},
         {n:"Ronner Design", u:"https://ronnerdesign.com", t:["骑马"], c:"denim"},
         {n:"Monster Valley", u:"https://www.monstervalley.com", t:["户外"], c:"denim"},
-
-        // Linen
         {n:"Airily", u:"https://airily.eu/en/", t:["欧洲"], c:"linen"},
         {n:"Soolinen", u:"https://soolinen.com", t:["文艺"], c:"linen"},
         {n:"Fantasy Linen", u:"https://www.fantasylinen.com", t:["手工"], c:"linen"},
@@ -728,5 +713,4 @@
 
 </script>
 </body>
-
 </html>

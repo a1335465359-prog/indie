@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Indie Nav - V9.1 Fixed</title>
+<title>Indie Nav - V9.2 Fixed</title>
 <script src="https://cdn.jsdelivr.net/npm/leancloud-storage@4.15.0/dist/av-min.js"></script>
 <style>
     :root {
@@ -46,10 +46,10 @@
         --sidebar-bg: rgba(240, 240, 245, 0.7);
         --accent: #007aff;
         --orb1: #007aff; --orb2: #5ac8fa; --orb3: #5856d6;
-        --blend-mode: multiply; /* 关键：正片叠底，否则白底上看不见光 */
+        --blend-mode: multiply;
         --orb-opacity: 0.15;
     }
-    /* 4. 星空 (纯黑无光球) */
+    /* 4. 星空 (纯黑) */
     body.theme-stars { --bg-color: #000000; --orb-opacity: 0; }
     body.theme-stars::before {
         content: ""; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
@@ -61,7 +61,7 @@
         background-position: 0 0, 40px 60px, 130px 270px;
         z-index: -1; opacity: 0.8; pointer-events: none;
     }
-    /* 5. 线条 (网格) */
+    /* 5. 线条 */
     body.theme-lines {
         --bg-color: #0a0a0a; --orb-opacity: 0;
         background-image: linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px);
@@ -79,12 +79,12 @@
         transition: background-color 0.6s ease, color 0.3s ease;
     }
 
-    /* --- 极光层 (修复点：去掉背景色) --- */
+    /* --- 极光层 --- */
     .aurora-layer {
         position: fixed; top: 0; left: 0; width: 100%; height: 100%;
         z-index: 0; pointer-events: none; overflow: hidden;
-        background: transparent; /* 这里必须透明，否则挡住 body 颜色 */
-        transform: translate3d(0,0,0); /* 开启 GPU */
+        background: transparent; /* 确保透明，否则挡住背景色 */
+        transform: translate3d(0,0,0);
     }
 
     .orb {
@@ -153,6 +153,7 @@
     }
     .search-input:focus { background: rgba(128,128,128,0.2); border-color: var(--accent); }
     
+    /* 主题按钮 */
     .theme-btn {
         width: 32px; height: 32px; border-radius: 50%; background: var(--glass-border); color: var(--text-main);
         display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; font-size: 16px;
@@ -321,14 +322,34 @@
     let targetUrl = null; 
     let isAdmin = false; 
 
+    // --- 主题系统 (Chatgpt 修复版) ---
     const themes = ['', 'theme-red', 'theme-green', 'theme-white', 'theme-stars', 'theme-lines'];
     let themeIdx = 0;
+
     function toggleTheme() {
-        document.body.classList.remove(themes[themeIdx]);
+        // 下一主题档
         themeIdx = (themeIdx + 1) % themes.length;
-        if(themes[themeIdx]) document.body.classList.add(themes[themeIdx]);
+
+        // 移除已有 theme-* class，保留其他 class
+        document.body.className = (
+          document.body.className
+            .split(/\s+/)
+            .filter(c => !c.startsWith('theme-'))
+            .join(' ')
+        );
+
+        // 添加新的主题 class
+        const nextClass = themes[themeIdx];
+        if (nextClass) {
+            document.body.classList.add(nextClass);
+        }
+
+        // Debug：打印当前主题名和背景色
+        console.log('当前主题：', nextClass || '(默认)');
+        console.log('当前背景色：', getComputedStyle(document.body).backgroundColor);
     }
 
+    // --- 登录 ---
     function tryLogin() {
         const pwd = document.getElementById('accessKey').value;
         if(pwd === "666") {
@@ -354,6 +375,7 @@
     function initCloud() {
         AV.init({ appId: LC_APP_ID, appKey: LC_APP_KEY, serverURL: LC_SERVER_URL });
         fetchData();
+        startMeteorShower();
     }
 
     async function fetchData() {
@@ -458,6 +480,7 @@
                 targetUrl = item.u;
                 const menu = document.getElementById('ctxMenu');
                 
+                // 权限控制
                 const delBtn = document.getElementById('btnDelete');
                 const tagBtn = document.getElementById('btnTags');
                 if(isAdmin) {
@@ -594,6 +617,19 @@
             document.getElementById('ctxMenu').style.display = 'none';
         }
     });
+
+    function startMeteorShower() {
+        setInterval(() => {
+            if(document.body.classList.contains('theme-white')) return; 
+            const m = document.createElement('div');
+            m.className = 'meteor';
+            m.style.left = Math.random() * window.innerWidth + 'px';
+            m.style.top = Math.random() * window.innerHeight * 0.5 + 'px';
+            m.style.animation = `meteor-fly ${0.5+Math.random()}s linear`;
+            document.getElementById('meteorLayer').appendChild(m);
+            setTimeout(()=>m.remove(), 2000);
+        }, 1500);
+    }
 
     const initialSites = [
         // SHEIN

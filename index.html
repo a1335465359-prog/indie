@@ -4,17 +4,17 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Indie Nav - 共创社区</title>
-<!-- 引入 LeanCloud SDK (使用稳定CDN) -->
+<!-- 引入 LeanCloud SDK -->
 <script src="https://cdn.jsdelivr.net/npm/leancloud-storage@4.15.0/dist/av-min.js"></script>
 <style>
     :root {
-        /* 极光色板 - 优化透明度减少卡顿 */
         --bg-deep: #050714;
         --text-primary: #ffffff;
         --text-secondary: rgba(255, 255, 255, 0.65);
-        --glass-surface: rgba(30, 30, 35, 0.3); /* 降低透明度，提升性能 */
+        --glass-surface: rgba(30, 30, 35, 0.3);
         --glass-border: rgba(255, 255, 255, 0.1);
         --accent-color: #00d2ff;
+        --danger-color: #ff453a; /* 红色警告色 */
         --radius-l: 16px;
         --font-stack: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
     }
@@ -30,14 +30,12 @@
         color: var(--text-primary);
     }
 
-    /* --- 1. 静态化极光背景 (解决卡顿) --- */
+    /* --- 1. 极光背景 --- */
     .aurora-layer { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; background: #020205; }
-    /* 使用 opacity 动画代替 transform 动画，性能更好 */
     .orb { position: absolute; border-radius: 50%; filter: blur(80px); opacity: 0.4; mix-blend-mode: screen; }
     .orb-1 { width: 60vw; height: 60vw; background: radial-gradient(circle, #00ff9d 0%, transparent 60%); top: -20%; left: -20%; animation: breathe 10s infinite alternate; }
     .orb-2 { width: 50vw; height: 50vw; background: radial-gradient(circle, #bd00ff 0%, transparent 60%); bottom: -20%; right: -20%; animation: breathe 12s infinite alternate-reverse; }
     .orb-3 { width: 40vw; height: 40vw; background: radial-gradient(circle, #00b8ff 0%, transparent 60%); top: 30%; right: 20%; opacity: 0.2; }
-    
     @keyframes breathe { 0% { opacity: 0.3; } 100% { opacity: 0.5; } }
 
     /* --- 2. 门禁系统 --- */
@@ -110,23 +108,17 @@
 
     .site-title { font-size: 15px; font-weight: 600; color: #fff; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .site-url { font-size: 11px; color: rgba(255,255,255,0.4); font-family: monospace; }
-    
     .card-footer { display: flex; justify-content: space-between; align-items: center; }
-    
     .tags-row { display: flex; gap: 4px; flex-wrap: wrap; flex: 1; overflow: hidden; height: 20px; }
     .tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; background: rgba(0,0,0,0.3); color: #aaa; white-space: nowrap; }
     .tag.custom { color: var(--accent-color); background: rgba(0, 210, 255, 0.1); }
-    
-    /* 加号按钮 */
     .add-tag-btn { 
         width: 20px; height: 20px; border-radius: 4px; background: rgba(255,255,255,0.1); color: #fff; border: none; 
         cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; margin-left: 5px;
     }
     .add-tag-btn:hover { background: var(--accent-color); color: #000; }
-
     .stars { color: #ffd700; font-size: 11px; letter-spacing: 1px; }
 
-    /* 悬浮按钮 */
     .fab-add {
         position: absolute; bottom: 30px; right: 30px;
         width: 50px; height: 50px; border-radius: 50%;
@@ -147,6 +139,11 @@
     .ctx-item { padding: 8px; font-size: 13px; color: #ddd; cursor: pointer; border-radius: 4px; }
     .ctx-item:hover { background: #333; color: #fff; }
     .ctx-divider { height: 1px; background: #444; margin: 4px 0; }
+    
+    /* 删除按钮样式 (默认隐藏，仅管理员显示) */
+    .ctx-delete { color: var(--danger-color); display: none; }
+    .ctx-delete:hover { background: rgba(255, 69, 58, 0.15); }
+
     .star-row { display: flex; justify-content: center; gap: 5px; padding: 5px; }
     .star-btn { font-size: 18px; color: #555; cursor: pointer; }
     .star-btn:hover, .star-btn.active { color: #ffd700; }
@@ -162,7 +159,6 @@
 </head>
 <body>
 
-    <!-- 1. 门禁 -->
     <div class="auth-overlay" id="authScreen">
         <div class="auth-box">
             <h2 style="color:#fff; margin-bottom:10px;">Indie Nav</h2>
@@ -172,14 +168,12 @@
         </div>
     </div>
 
-    <!-- 2. 背景 -->
     <div class="aurora-layer">
         <div class="orb orb-1"></div>
         <div class="orb orb-2"></div>
         <div class="orb orb-3"></div>
     </div>
 
-    <!-- 3. 主界面 -->
     <div class="os-window" id="mainWindow">
         <nav class="sidebar">
             <div class="logo">Indie Nav Cloud</div>
@@ -209,7 +203,7 @@
         <main class="main-view">
             <div class="toolbar">
                 <input type="text" class="search-input" placeholder="搜索..." oninput="handleSearch(this.value)">
-                <div style="font-size:12px; color:rgba(255,255,255,0.4);" id="syncStatus">离线</div>
+                <div style="font-size:12px; color:rgba(255,255,255,0.4);" id="userStatus">访客模式</div>
             </div>
             <div class="scroll-content">
                 <div class="grid" id="grid"></div>
@@ -218,7 +212,6 @@
         </main>
     </div>
 
-    <!-- 添加弹窗 -->
     <div class="modal-overlay" id="addModal">
         <div class="modal">
             <h3 style="color:#fff; margin-bottom:15px;">添加新网站</h3>
@@ -226,6 +219,7 @@
             <input id="newName" placeholder="网站名称">
             <input id="newTags" placeholder="标签 (逗号分隔)">
             <select id="newCat">
+                <option value="custom">-- 默认分类 (Custom) --</option>
                 <option value="young">年轻 / 辣妹</option>
                 <option value="elegant">轻熟 / 通勤</option>
                 <option value="sport">运动 / 潮牌</option>
@@ -237,22 +231,22 @@
                 <option value="fast">全球快时尚</option>
                 <option value="euro">欧洲 / 小众</option>
                 <option value="shein">SHEIN</option>
-                <option value="custom">其他 / 自定义</option>
             </select>
             <button class="modal-btn" onclick="submitNewSite()">保存并同步</button>
             <button class="modal-btn" style="background:rgba(255,255,255,0.1); color:#fff; margin-top:8px;" onclick="document.getElementById('addModal').style.display='none'">取消</button>
         </div>
     </div>
 
-    <!-- 右键菜单 (已移除删除功能) -->
     <div id="ctxMenu" class="ctx-menu">
         <div id="starInput" class="star-row"></div>
         <div class="ctx-divider"></div>
         <div class="ctx-item" onclick="renameSite()">✏️ 重命名</div>
+        <!-- 只有管理员可见 -->
+        <div class="ctx-item ctx-delete" id="btnDelete" onclick="deleteSite()">🗑 删除网站</div>
     </div>
 
 <script>
-    const ACCESS_PASSWORD = "666"; 
+    // --- 配置区 ---
     const LC_APP_ID = "MTbnlF1EcKYgifi6nWsjLK3v-MdYXbMMI";
     const LC_APP_KEY = "iPMUnJbKplRokq3h4SUPdpMT"; 
     const LC_SERVER_URL = "https://mtbnlf1e.api.lncldglobal.com";
@@ -261,19 +255,34 @@
     let localData = { sites: [] }; 
     let currentFilter = 'all';
     let targetUrl = null; 
+    let isAdmin = false; // 是否是管理员
 
+    // --- 1. 登录逻辑 ---
     function tryLogin() {
         const pwd = document.getElementById('accessKey').value;
-        if(pwd === ACCESS_PASSWORD) {
-            document.getElementById('authScreen').style.opacity = '0';
-            setTimeout(() => {
-                document.getElementById('authScreen').style.display = 'none';
-                document.getElementById('mainWindow').style.display = 'flex';
-                initCloud();
-            }, 500);
+        const status = document.getElementById('userStatus');
+        
+        if(pwd === "666") {
+            isAdmin = false;
+            status.innerText = "用户模式 (不可删)";
+            enterApp();
+        } else if (pwd === "1335465359") {
+            isAdmin = true;
+            status.innerText = "管理员模式 (可删/改)";
+            status.style.color = "#00d2ff";
+            enterApp();
         } else {
             alert("密码错误");
         }
+    }
+
+    function enterApp() {
+        document.getElementById('authScreen').style.opacity = '0';
+        setTimeout(() => {
+            document.getElementById('authScreen').style.display = 'none';
+            document.getElementById('mainWindow').style.display = 'flex';
+            initCloud();
+        }, 500);
     }
 
     function initCloud() {
@@ -281,9 +290,8 @@
         fetchData();
     }
 
+    // --- 2. 云端同步 ---
     async function fetchData() {
-        const status = document.getElementById('syncStatus');
-        status.innerText = "连接中...";
         try {
             const query = new AV.Query('GlobalData');
             const result = await query.first();
@@ -292,7 +300,6 @@
                 const cloudSites = result.get('sites');
                 if(cloudSites && cloudSites.length > 0) {
                     localData.sites = cloudSites;
-                    status.innerText = "在线";
                 } else {
                     localData.sites = initialSites;
                     pushData();
@@ -304,12 +311,10 @@
                 const saved = await newData.save();
                 DB_ID = saved.id;
                 localData.sites = initialSites;
-                status.innerText = "在线";
             }
             render(currentFilter);
         } catch (error) {
             console.error(error);
-            status.innerText = "离线";
             localData.sites = initialSites;
             render(currentFilter);
         }
@@ -322,7 +327,7 @@
         await todo.save();
     }
 
-    // --- 核心渲染 (排序逻辑修改) ---
+    // --- 3. 渲染 ---
     function render(filter, el) {
         currentFilter = filter;
         if(el) {
@@ -333,9 +338,8 @@
         const grid = document.getElementById('grid');
         grid.innerHTML = '';
         
-        let list = [...localData.sites]; // 复制一份，避免污染原数据
+        let list = [...localData.sites];
         
-        // 1. 筛选
         if (filter !== 'all') {
             if (filter === 'custom') {
                 const initialUrls = new Set(initialSites.map(s => s.u));
@@ -350,37 +354,27 @@
             list = list.filter(s => s.n.toLowerCase().includes(search) || (s.t && s.t.join('').toLowerCase().includes(search)));
         }
 
-        // 2. 排序逻辑 (核心修改)
-        // 规则：默认按添加时间倒序 (最新在前)，但是 1星和2星 强制沉底
-        list.reverse(); // 先把最新的放前面
-        
+        // 排序：最新在前，但差评(<=2)沉底
+        list.reverse();
         list.sort((a, b) => {
-            const rA = a.rating || 5; // 没打分的默认为5星(好)，不沉底
+            const rA = a.rating || 5;
             const rB = b.rating || 5;
-            
-            // 如果 A 是差评(<=2)，B 是好评(>2)，A 排在 B 后面 (返回1)
             if (rA <= 2 && rB > 2) return 1;
-            // 如果 A 是好评，B 是差评，A 排在 B 前面 (返回-1)
             if (rA > 2 && rB <= 2) return -1;
-            // 其他情况保持原顺序 (即最新的在前)
             return 0; 
         });
 
-        // 3. 渲染
         list.forEach(item => {
             const card = document.createElement('a');
             card.className = item.c === 'shein' ? 'card shein-card' : 'card';
             card.href = item.u;
             card.target = "_blank";
             
-            // 修复：这里统一使用 item.t，防止 tags 混用
             const tags = item.t ? item.t.map(tag => `<span class="tag">${tag}</span>`).join('') : '';
             const domain = item.u.replace('https://','').replace('www.','').split('/')[0];
             
             let stars = '';
-            if(item.rating) {
-                for(let k=0; k<item.rating; k++) stars += '★';
-            }
+            if(item.rating) { for(let k=0; k<item.rating; k++) stars += '★'; }
 
             card.innerHTML = `
                 <div>
@@ -399,6 +393,14 @@
                 targetUrl = item.u;
                 const menu = document.getElementById('ctxMenu');
                 
+                // 权限控制：只有管理员显示删除按钮
+                const delBtn = document.getElementById('btnDelete');
+                if(isAdmin) {
+                    delBtn.style.display = 'block';
+                } else {
+                    delBtn.style.display = 'none';
+                }
+
                 const starDiv = document.getElementById('starInput');
                 starDiv.innerHTML = '';
                 for(let i=1; i<=5; i++) {
@@ -421,6 +423,7 @@
         });
     }
 
+    // --- 4. 功能逻辑 ---
     function openAddModal() { document.getElementById('addModal').style.display = 'flex'; }
     
     function autoFillName() {
@@ -457,6 +460,16 @@
         render('custom'); 
     }
 
+    function deleteSite() {
+        if(!isAdmin) return; // 双重保险
+        if(confirm("确定删除此网站？(操作将同步给所有用户)")) {
+            localData.sites = localData.sites.filter(s => s.u !== targetUrl);
+            pushData();
+            render(currentFilter);
+            document.getElementById('ctxMenu').style.display = 'none';
+        }
+    }
+
     function renameSite() {
         const newName = prompt("输入新名称:");
         if(newName) {
@@ -475,18 +488,17 @@
         if(site) {
             site.rating = score;
             pushData();
-            render(currentFilter); // 重新渲染，低分网站会自动沉底
+            render(currentFilter);
         }
     }
 
-    // 修复添加标签的逻辑
     function addTag(u, e) {
         e.preventDefault(); e.stopPropagation();
         const t = prompt("输入新标签:");
         if(t) { 
             const site = localData.sites.find(s => s.u === u);
             if(site) {
-                if(!site.t) site.t = []; // 确保数组存在
+                if(!site.t) site.t = []; 
                 site.t.push(t);
                 pushData();
                 render(currentFilter);

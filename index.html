@@ -3,85 +3,148 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Indie Nav - V8.1</title>
-<!-- 引入 LeanCloud SDK -->
+<title>Indie Nav - V9 Performance</title>
 <script src="https://cdn.jsdelivr.net/npm/leancloud-storage@4.15.0/dist/av-min.js"></script>
 <style>
     :root {
-        /* 默认极光黑主题变量 */
-        --bg-color: #050714;
-        --text-primary: #ffffff;
-        --text-secondary: rgba(255, 255, 255, 0.65);
-        --glass-surface: rgba(30, 30, 35, 0.3);
+        /* --- 核心变量定义 --- */
+        --bg-color: #050714; /* 背景色 */
+        --text-main: #ffffff;
+        --text-sub: rgba(255, 255, 255, 0.65);
+        
+        /* 玻璃卡片 */
+        --glass-bg: rgba(30, 30, 35, 0.3);
         --glass-border: rgba(255, 255, 255, 0.1);
-        --accent-color: #00d2ff;
+        --card-hover: rgba(255, 255, 255, 0.15);
+        
+        /* 侧边栏 */
         --sidebar-bg: rgba(20, 20, 25, 0.6);
-        --card-hover: rgba(255, 255, 255, 0.1);
-        --radius-l: 16px;
-        --font-stack: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+        
+        /* 强调色 */
+        --accent: #00d2ff;
+        
+        /* 光球颜色 (默认极光) */
+        --orb1: #00ff9d;
+        --orb2: #bd00ff;
+        --orb3: #00b8ff;
+        --blend-mode: screen; /* 混合模式 */
+        --orb-opacity: 0.4;
     }
 
-    /* --- 主题定制 --- */
-    /* 1. 红色主题 */
-    body.theme-red { --bg-color: #1a0505; --accent-color: #ff4d4d; --sidebar-bg: rgba(40, 10, 10, 0.6); }
-    body.theme-red .orb { filter: hue-rotate(140deg); } 
+    /* --- 🎨 主题配色方案 --- */
 
-    /* 2. 绿色主题 */
-    body.theme-green { --bg-color: #051a0a; --accent-color: #00ff88; --sidebar-bg: rgba(10, 40, 15, 0.6); }
-    body.theme-green .orb { filter: hue-rotate(260deg); }
+    /* 1. 绯红 (Red) */
+    body.theme-red {
+        --bg-color: #1a0505;
+        --accent: #ff4d4d;
+        --orb1: #ff0000; --orb2: #ff8800; --orb3: #ff0055;
+        --sidebar-bg: rgba(40, 10, 10, 0.6);
+    }
 
-    /* 3. 白色主题 (反色) */
-    body.theme-white { 
-        --bg-color: #f2f2f7; 
-        --text-primary: #1d1d1f; 
-        --text-secondary: #86868b;
-        --glass-surface: rgba(255, 255, 255, 0.6);
+    /* 2. 幽绿 (Green) */
+    body.theme-green {
+        --bg-color: #021202;
+        --accent: #00ff88;
+        --orb1: #00ff00; --orb2: #adff2f; --orb3: #008000;
+        --sidebar-bg: rgba(10, 30, 15, 0.6);
+    }
+
+    /* 3. 纯白 (White) - 特殊处理混合模式 */
+    body.theme-white {
+        --bg-color: #f5f5f7;
+        --text-main: #1d1d1f;
+        --text-sub: #86868b;
+        --glass-bg: rgba(255, 255, 255, 0.6);
         --glass-border: rgba(0, 0, 0, 0.1);
-        --sidebar-bg: rgba(255, 255, 255, 0.7);
-        --accent-color: #007aff;
-        --card-hover: rgba(255,255,255, 0.9);
+        --card-hover: #ffffff;
+        --sidebar-bg: rgba(240, 240, 245, 0.7);
+        --accent: #007aff;
+        /* 白色背景下，光球需要变暗才能看见 */
+        --orb1: #007aff; --orb2: #5ac8fa; --orb3: #5856d6;
+        --blend-mode: multiply; /* 正片叠底 */
+        --orb-opacity: 0.15; /* 淡淡的 */
     }
-    body.theme-white .orb { opacity: 0.6; filter: blur(100px); mix-blend-mode: multiply; }
-    body.theme-white .meteor-layer { display: none; } /* 白色背景不显示流星 */
 
-    /* 4. 星空主题 (纯黑+流星) */
-    body.theme-stars { --bg-color: #000000; }
-    body.theme-stars .orb { display: none; } /* 隐藏光球，只留流星 */
-
-    /* 5. 线条主题 (网格) */
-    body.theme-lines { 
-        --bg-color: #0a0a0a; 
+    /* 4. 星空 (Stars) - 隐藏光球，显示星星 */
+    body.theme-stars {
+        --bg-color: #000000;
+        --orb-opacity: 0; /* 隐藏光球 */
+    }
+    /* 仅在星空模式下显示星星背景图 */
+    body.theme-stars::before {
+        content: ""; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
         background-image: 
-            linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
-        background-size: 30px 30px;
+            radial-gradient(white, rgba(255,255,255,.2) 2px, transparent 3px),
+            radial-gradient(white, rgba(255,255,255,.15) 1px, transparent 2px),
+            radial-gradient(white, rgba(255,255,255,.1) 2px, transparent 3px);
+        background-size: 550px 550px, 350px 350px, 250px 250px;
+        background-position: 0 0, 40px 60px, 130px 270px;
+        z-index: -1; opacity: 0.8;
     }
-    body.theme-lines .orb { display: none; }
 
+    /* 5. 线条 (Lines) - 隐藏光球，显示网格 */
+    body.theme-lines {
+        --bg-color: #0a0a0a;
+        --orb-opacity: 0;
+        background-image: 
+            linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+        background-size: 40px 40px;
+    }
+
+    /* --- 基础样式 --- */
     * { margin: 0; padding: 0; box-sizing: border-box; outline: none; -webkit-tap-highlight-color: transparent; user-select: none; }
     
     body {
         background-color: var(--bg-color);
-        font-family: var(--font-stack);
+        font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
         height: 100vh;
         overflow: hidden;
         position: relative;
-        color: var(--text-primary);
-        transition: background-color 0.5s ease, color 0.3s;
+        color: var(--text-main);
+        transition: background-color 0.5s ease, color 0.3s ease;
     }
 
-    /* 背景层 (修复：背景设为透明，让body颜色透出来) */
-    .aurora-layer { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; background: transparent; }
-    
-    .orb { position: absolute; border-radius: 50%; filter: blur(80px); opacity: 0.4; mix-blend-mode: screen; transition: filter 0.5s; }
-    .orb-1 { width: 60vw; height: 60vw; background: radial-gradient(circle, #00ff9d 0%, transparent 60%); top: -20%; left: -20%; animation: breathe 10s infinite alternate; }
-    .orb-2 { width: 50vw; height: 50vw; background: radial-gradient(circle, #bd00ff 0%, transparent 60%); bottom: -20%; right: -20%; animation: breathe 12s infinite alternate-reverse; }
-    .orb-3 { width: 40vw; height: 40vw; background: radial-gradient(circle, #00b8ff 0%, transparent 60%); top: 30%; right: 20%; opacity: 0.2; }
-    @keyframes breathe { 0% { opacity: 0.3; } 100% { opacity: 0.5; } }
+    /* --- 极光层 (性能优化版) --- */
+    .aurora-layer {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        z-index: 0; pointer-events: none; overflow: hidden;
+        /* 加上 3D 变换以开启 GPU 加速 */
+        transform: translate3d(0,0,0);
+    }
 
-    .meteor-layer { position: absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:1; }
-    .meteor { position: absolute; width:120px; height:2px; background:linear-gradient(90deg, #fff, transparent); transform:rotate(-45deg); opacity:0; filter:drop-shadow(0 0 4px rgba(255,255,255,0.8)); }
-    @keyframes meteor-fly { 0%{opacity:1;transform:rotate(-45deg) translateX(0)} 100%{opacity:0;transform:rotate(-45deg) translateX(-600px)} }
+    .orb {
+        position: absolute; border-radius: 50%;
+        filter: blur(60px); /* 降低模糊度减少GPU压力 */
+        opacity: var(--orb-opacity);
+        mix-blend-mode: var(--blend-mode);
+        transition: background 1s ease, opacity 0.5s ease; /* 颜色切换时的过渡 */
+        will-change: transform; /* 告知浏览器优化 */
+    }
+
+    /* 极其缓慢的移动，不涉及透明度变化 */
+    .orb-1 { 
+        width: 60vw; height: 60vw; 
+        background: radial-gradient(circle, var(--orb1) 0%, transparent 70%); 
+        top: -15%; left: -15%; 
+        animation: move1 20s infinite alternate ease-in-out;
+    }
+    .orb-2 { 
+        width: 50vw; height: 50vw; 
+        background: radial-gradient(circle, var(--orb2) 0%, transparent 70%); 
+        bottom: -15%; right: -15%; 
+        animation: move2 25s infinite alternate ease-in-out;
+    }
+    .orb-3 { 
+        width: 40vw; height: 40vw; 
+        background: radial-gradient(circle, var(--orb3) 0%, transparent 70%); 
+        top: 30%; left: 30%; 
+        animation: move3 30s infinite alternate ease-in-out;
+    }
+
+    @keyframes move1 { 0% { transform: translate(0, 0); } 100% { transform: translate(20px, 20px); } }
+    @keyframes move2 { 0% { transform: translate(0, 0); } 100% { transform: translate(-20px, -20px); } }
+    @keyframes move3 { 0% { transform: translate(0, 0); } 100% { transform: translate(-15px, 15px); } }
 
     /* 门禁 */
     .auth-overlay {
@@ -92,48 +155,56 @@
     }
     .auth-box { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); padding: 40px; border-radius: 24px; text-align: center; width: 320px; }
     .auth-input { width: 100%; padding: 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.4); color: #fff; font-size: 16px; text-align: center; margin: 20px 0; }
-    .auth-btn { width: 100%; padding: 14px; border-radius: 12px; border: none; background: var(--accent-color); color: #000; font-weight: 800; cursor: pointer; }
+    .auth-btn { width: 100%; padding: 14px; border-radius: 12px; border: none; background: var(--accent); color: #000; font-weight: 800; cursor: pointer; }
 
-    /* 主界面 */
+    /* 主界面布局 */
     .os-window { display: none; position: relative; z-index: 10; width: 100%; height: 100%; padding: 16px; gap: 16px; max-width: 1920px; margin: 0 auto; }
     
+    /* 侧边栏 */
     .sidebar {
         width: 220px; background: var(--sidebar-bg);
-        border: 1px solid var(--glass-border); border-radius: var(--radius-l);
-        display: flex; flex-direction: column; padding: 20px 10px; flex-shrink: 0; backdrop-filter: blur(20px);
+        border: 1px solid var(--glass-border); border-radius: 16px;
+        display: flex; flex-direction: column; padding: 20px 10px; flex-shrink: 0;
+        backdrop-filter: blur(20px);
     }
     .logo {
         font-size: 18px; font-weight: 800; margin-bottom: 20px; padding-left: 12px;
-        background: linear-gradient(to right, var(--text-primary), var(--accent-color)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        background: linear-gradient(to right, var(--text-main), var(--accent)); 
+        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     }
-    .nav-group-label { font-size: 12px; font-weight: 600; color: var(--text-secondary); margin: 16px 0 6px 14px; }
+    .nav-group-label { font-size: 12px; font-weight: 600; color: var(--text-sub); margin: 16px 0 6px 14px; }
     .nav-item {
-        padding: 10px 14px; margin-bottom: 2px; border-radius: 8px; font-size: 14px; color: var(--text-secondary); cursor: pointer; transition: 0.1s; display: flex; align-items: center; justify-content: space-between;
+        padding: 10px 14px; margin-bottom: 2px; border-radius: 8px; font-size: 14px; color: var(--text-sub);
+        cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: space-between;
     }
-    .nav-item:hover { background: var(--glass-border); color: var(--text-primary); }
-    .nav-item.active { background: rgba(0, 210, 255, 0.15); color: var(--text-primary); font-weight: 600; border-left: 3px solid var(--accent-color); }
+    .nav-item:hover { background: var(--glass-border); color: var(--text-main); }
+    .nav-item.active { background: rgba(0, 210, 255, 0.15); color: var(--text-main); font-weight: 600; border-left: 3px solid var(--accent); }
+    
+    /* SHEIN 特殊色 */
     .nav-item[data-cat="shein"] { color: #ffe066; }
     body.theme-white .nav-item[data-cat="shein"] { color: #d4a017; }
 
+    /* 主视图 */
     .main-view {
-        flex: 1; background: var(--glass-surface); backdrop-filter: blur(30px);
-        border: 1px solid var(--glass-border); border-radius: var(--radius-l);
+        flex: 1; background: var(--glass-bg); backdrop-filter: blur(30px);
+        border: 1px solid var(--glass-border); border-radius: 16px;
         display: flex; flex-direction: column; overflow: hidden; position: relative;
     }
     .toolbar {
         padding: 14px 24px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--glass-border);
     }
     .search-input {
-        width: 280px; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--glass-border); background: rgba(128,128,128,0.1); font-size: 14px; color: var(--text-primary);
+        width: 280px; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--glass-border); 
+        background: rgba(128,128,128,0.1); font-size: 14px; color: var(--text-main);
     }
-    .search-input:focus { background: rgba(128,128,128,0.2); border-color: var(--accent-color); }
+    .search-input:focus { background: rgba(128,128,128,0.2); border-color: var(--accent); }
     
-    /* 主题切换按钮 */
+    /* 主题按钮 */
     .theme-btn {
-        width: 32px; height: 32px; border-radius: 50%; background: var(--glass-border);
-        display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; font-size: 16px; color: var(--text-primary);
+        width: 32px; height: 32px; border-radius: 50%; background: var(--glass-border); color: var(--text-main);
+        display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; font-size: 16px;
     }
-    .theme-btn:hover { background: var(--accent-color); color: #000; }
+    .theme-btn:hover { background: var(--accent); color: #000; }
 
     .scroll-content { flex: 1; overflow-y: auto; padding: 0 24px 40px 24px; }
     .scroll-content::-webkit-scrollbar { width: 6px; }
@@ -141,61 +212,60 @@
 
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
 
+    /* 卡片 */
     .card {
         background: var(--glass-surface); border: 1px solid var(--glass-border); border-radius: 12px; height: 110px; padding: 14px;
         display: flex; flex-direction: column; justify-content: space-between; text-decoration: none; position: relative;
         transition: transform 0.1s, background 0.2s;
     }
-    .card:hover { transform: translateY(-2px); background: var(--card-hover); border-color: var(--accent-color); }
+    .card:hover { transform: translateY(-2px); background: var(--card-hover); border-color: var(--accent); }
     .card.shein-card { border-color: rgba(255,215,0,0.2); }
     .card.shein-card .site-title { color: #ffe066; }
     body.theme-white .card.shein-card .site-title { color: #d4a017; }
 
-    .site-title { font-size: 15px; font-weight: 600; color: var(--text-primary); margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .site-url { font-size: 11px; color: var(--text-secondary); font-family: monospace; }
+    .site-title { font-size: 15px; font-weight: 600; color: var(--text-main); margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .site-url { font-size: 11px; color: var(--text-sub); font-family: monospace; }
     .card-footer { display: flex; justify-content: space-between; align-items: center; }
     .tags-row { display: flex; gap: 4px; flex-wrap: wrap; flex: 1; overflow: hidden; height: 20px; }
-    .tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; background: rgba(128,128,128,0.2); color: var(--text-secondary); white-space: nowrap; }
-    .tag.custom { color: var(--accent-color); background: rgba(0, 210, 255, 0.1); }
+    .tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; background: rgba(128,128,128,0.2); color: var(--text-sub); white-space: nowrap; }
+    .tag.custom { color: var(--accent); background: rgba(0, 210, 255, 0.1); }
     .add-tag-btn { 
-        width: 20px; height: 20px; border-radius: 4px; background: var(--glass-border); color: var(--text-primary); border: none; 
+        width: 20px; height: 20px; border-radius: 4px; background: var(--glass-border); color: var(--text-main); border: none; 
         cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; margin-left: 5px;
     }
-    .add-tag-btn:hover { background: var(--accent-color); color: #000; }
+    .add-tag-btn:hover { background: var(--accent); color: #000; }
     .stars { color: #ffd700; font-size: 11px; letter-spacing: 1px; }
 
+    /* 添加按钮 */
     .fab-add {
         position: absolute; bottom: 30px; right: 30px;
         width: 50px; height: 50px; border-radius: 50%;
-        background: var(--accent-color); color: #000; font-size: 30px;
+        background: var(--accent); color: #000; font-size: 30px;
         display: flex; align-items: center; justify-content: center;
         box-shadow: 0 0 20px rgba(0,0,0,0.2); cursor: pointer; z-index: 50;
     }
     .fab-add:hover { transform: scale(1.1); background: #fff; }
 
+    /* 弹窗 */
     .modal-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:200; display:none; align-items:center; justify-content:center; }
     .modal { background: #222; padding: 24px; border-radius: 16px; width: 380px; border: 1px solid rgba(255,255,255,0.2); color: #fff; }
     .modal input, .modal select { width: 100%; padding: 12px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.1); color: #fff; border-radius: 8px; margin-bottom: 12px; }
-    .modal-btn { width: 100%; padding: 12px; background: var(--accent-color); border: none; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+    .modal-btn { width: 100%; padding: 12px; background: var(--accent); border: none; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 10px; }
 
     /* 右键菜单 */
     .ctx-menu { position: fixed; background: #222; border: 1px solid #444; border-radius: 8px; padding: 5px; display: none; z-index: 100; box-shadow: 0 5px 15px rgba(0,0,0,0.5); width: 140px; }
     .ctx-item { padding: 8px; font-size: 13px; color: #ddd; cursor: pointer; border-radius: 4px; }
     .ctx-item:hover { background: #333; color: #fff; }
     .ctx-divider { height: 1px; background: #444; margin: 4px 0; }
-    
     .ctx-delete { color: #ff453a; display: none; }
-    .ctx-delete:hover { background: rgba(255, 69, 58, 0.2); }
-    
-    .ctx-manage-tags { display: none; } 
-
+    .ctx-manage-tags { display: none; }
     .star-row { display: flex; justify-content: center; gap: 5px; padding: 5px; }
     .star-btn { font-size: 18px; color: #555; cursor: pointer; }
     .star-btn:hover, .star-btn.active { color: #ffd700; }
 
     @media (max-width: 900px) {
         .os-window { flex-direction: column; padding: 0; }
-        .sidebar { width: 100%; height: auto; flex-direction: row; overflow-x: auto; padding: 12px; background: #000; }
+        .sidebar { width: 100%; height: auto; flex-direction: row; overflow-x: auto; padding: 12px; background: var(--bg-color); }
         .nav-item { flex-shrink: 0; white-space: nowrap; margin-right: 5px; }
         .logo, .nav-group-label { display: none; }
         .grid { grid-template-columns: 1fr; }
@@ -217,7 +287,6 @@
         <div class="orb orb-1"></div>
         <div class="orb orb-2"></div>
         <div class="orb orb-3"></div>
-        <div class="meteor-layer" id="meteorLayer"></div>
     </div>
 
     <div class="os-window" id="mainWindow">
@@ -226,7 +295,6 @@
             
             <div class="nav-group-label">库</div>
             <div class="nav-item active" onclick="render('all', this)">全部网站</div>
-            <!-- 修复：去除了Emoji -->
             <div class="nav-item" onclick="render('5star', this)">五星精选</div>
             <div class="nav-item" onclick="render('custom', this)">网友共创</div>
 
@@ -251,7 +319,6 @@
         <main class="main-view">
             <div class="toolbar">
                 <input type="text" class="search-input" placeholder="搜索..." oninput="handleSearch(this.value)">
-                <!-- 修复：切换主题按钮 -->
                 <div class="theme-btn" onclick="toggleTheme()" title="切换主题">🎨</div>
             </div>
             <div class="scroll-content">
@@ -305,7 +372,7 @@
     let targetUrl = null; 
     let isAdmin = false; 
 
-    // --- 主题系统 ---
+    // --- 主题系统 (修复版) ---
     const themes = ['', 'theme-red', 'theme-green', 'theme-white', 'theme-stars', 'theme-lines'];
     let themeIdx = 0;
     function toggleTheme() {
@@ -314,7 +381,7 @@
         if(themes[themeIdx]) document.body.classList.add(themes[themeIdx]);
     }
 
-    // --- 登录逻辑 ---
+    // --- 登录 ---
     function tryLogin() {
         const pwd = document.getElementById('accessKey').value;
         if(pwd === "666") {
@@ -340,7 +407,6 @@
     function initCloud() {
         AV.init({ appId: LC_APP_ID, appKey: LC_APP_KEY, serverURL: LC_SERVER_URL });
         fetchData();
-        startMeteorShower();
     }
 
     async function fetchData() {
@@ -445,7 +511,6 @@
                 targetUrl = item.u;
                 const menu = document.getElementById('ctxMenu');
                 
-                // 权限控制
                 const delBtn = document.getElementById('btnDelete');
                 const tagBtn = document.getElementById('btnTags');
                 if(isAdmin) {
@@ -582,19 +647,6 @@
             document.getElementById('ctxMenu').style.display = 'none';
         }
     });
-
-    function startMeteorShower() {
-        setInterval(() => {
-            if(document.body.classList.contains('theme-white')) return; 
-            const m = document.createElement('div');
-            m.className = 'meteor';
-            m.style.left = Math.random() * window.innerWidth + 'px';
-            m.style.top = Math.random() * window.innerHeight * 0.5 + 'px';
-            m.style.animation = `meteor-fly ${0.5+Math.random()}s linear`;
-            document.getElementById('meteorLayer').appendChild(m);
-            setTimeout(()=>m.remove(), 2000);
-        }, 1500);
-    }
 
     const initialSites = [
         // SHEIN

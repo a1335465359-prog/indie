@@ -8,28 +8,52 @@ interface SiteCardProps {
   onContextMenu: (e: React.MouseEvent, site: Site) => void;
   themeName?: string;
   onClick?: (site: Site) => void;
+  // Local Pin Props
+  isLocalPinned?: boolean;
+  onToggleLocalPin?: (site: Site) => void;
+  // Drag Props
+  isDraggable?: boolean;
+  onDragStart?: (e: React.DragEvent) => void;
+  onDragOver?: (e: React.DragEvent) => void;
+  onDrop?: (e: React.DragEvent) => void;
 }
 
-const SiteCard: React.FC<SiteCardProps> = ({ site, onTagAdd, onContextMenu, themeName, onClick }) => {
+const SiteCard: React.FC<SiteCardProps> = ({ 
+  site, 
+  onTagAdd, 
+  onContextMenu, 
+  themeName, 
+  onClick,
+  isLocalPinned,
+  onToggleLocalPin,
+  isDraggable,
+  onDragStart,
+  onDragOver,
+  onDrop
+}) => {
   const isShein = site.c === 'shein';
   const domain = site.u.replace('https://', '').replace('www.', '').split('/')[0];
   const stars = '★'.repeat(site.rating || 0);
 
-  // Use shadow style from vars + dynamic blur
   const cardStyle = {
     boxShadow: 'var(--card-shadow)',
-    backdropFilter: 'blur(var(--card-blur))'
+    backdropFilter: 'blur(var(--card-blur))',
+    cursor: isDraggable ? 'move' : 'pointer'
   };
 
   let cardClass = `
     card group relative flex flex-col justify-between p-3.5 h-[110px] rounded-xl border border-[var(--glass-border)]
     bg-[var(--glass-surface)] text-decoration-none transition-all duration-300
     hover:-translate-y-1
-    cursor-pointer
   `;
 
   if (isShein) {
     cardClass += ` border-[rgba(255,215,0,0.3)]`;
+  }
+  
+  // Visual feedback for dragging
+  if (isDraggable) {
+    cardClass += ` active:scale-95 active:opacity-80`;
   }
 
   const titleClass = `
@@ -39,7 +63,9 @@ const SiteCard: React.FC<SiteCardProps> = ({ site, onTagAdd, onContextMenu, them
     ${isShein && themeName === 'White' ? '!text-[#d4a017]' : ''}
   `;
 
-  const handleClick = () => {
+  const handleClick = (e: React.MouseEvent) => {
+    // If clicking drag handle or pin button, don't trigger site open
+    if ((e.target as HTMLElement).closest('.stop-propagation')) return;
     if (onClick) {
       onClick(site);
     }
@@ -56,12 +82,46 @@ const SiteCard: React.FC<SiteCardProps> = ({ site, onTagAdd, onContextMenu, them
       onClick={handleClick}
       onMouseEnter={(e) => e.currentTarget.style.boxShadow = 'var(--card-shadow-hover)'}
       onMouseLeave={(e) => e.currentTarget.style.boxShadow = 'var(--card-shadow)'}
+      draggable={isDraggable}
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
     >
+      {/* Admin Pinned Indicator */}
       {site.pinned && (
-        <div className="absolute top-0 right-0 w-3 h-3 bg-[var(--accent)] rounded-bl-lg rounded-tr-lg shadow-[0_0_5px_var(--accent)]" />
+        <div className="absolute top-0 right-0 w-3 h-3 bg-[var(--accent)] rounded-bl-lg rounded-tr-lg shadow-[0_0_5px_var(--accent)] z-10" title="管理员置顶" />
+      )}
+      
+      {/* Local Pin Button (Visible on hover or if pinned locally) */}
+      {(isLocalPinned || onToggleLocalPin) && (
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (onToggleLocalPin) onToggleLocalPin(site);
+          }}
+          className={`
+            stop-propagation absolute top-1.5 right-1.5 w-6 h-6 flex items-center justify-center rounded-full
+            transition-all duration-200 z-20
+            ${isLocalPinned 
+               ? 'bg-[var(--accent)] text-black opacity-100 shadow-[0_0_8px_var(--accent)]' 
+               : 'bg-[var(--glass-border)] text-[var(--text-sub)] opacity-0 group-hover:opacity-100 hover:bg-[var(--text-main)] hover:text-black'
+            }
+          `}
+          title={isLocalPinned ? "取消常用钉住" : "钉住到常用"}
+        >
+          <span className="text-xs transform -rotate-45">📌</span>
+        </button>
       )}
 
-      <div>
+      {/* Drag Handle for Pinned Items */}
+      {isDraggable && (
+        <div className="absolute top-1/2 left-1 -translate-y-1/2 opacity-0 group-hover:opacity-50 text-[var(--text-sub)] cursor-grab">
+          ⋮⋮
+        </div>
+      )}
+
+      <div className={isDraggable ? "pl-2" : ""}>
         <div className={titleClass}>{site.n}</div>
         <div className="text-[#ffd700] text-[11px] tracking-widest h-4 drop-shadow-sm">{stars}</div>
         <div className="text-[11px] text-[var(--text-sub)] font-mono opacity-80">{domain}</div>
@@ -81,7 +141,7 @@ const SiteCard: React.FC<SiteCardProps> = ({ site, onTagAdd, onContextMenu, them
             e.stopPropagation();
             onTagAdd(site.u);
           }}
-          className="ml-1 w-5 h-5 rounded flex items-center justify-center bg-[var(--glass-border)] text-[var(--text-main)] hover:bg-[var(--accent)] hover:text-black transition-colors"
+          className="stop-propagation ml-1 w-5 h-5 rounded flex items-center justify-center bg-[var(--glass-border)] text-[var(--text-main)] hover:bg-[var(--accent)] hover:text-black transition-colors"
         >
           +
         </button>

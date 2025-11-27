@@ -8,7 +8,13 @@ import {
   updateSite, 
   deleteSite 
 } from './services/storageService';
-import { recordClick, getTopSites } from './services/localStats';
+import { 
+  recordClick, 
+  getFavorites, 
+  toggleLocalPin, 
+  isLocallyPinned,
+  reorderPinned 
+} from './services/localStats';
 
 import AuroraBackground from './components/AuroraBackground';
 import AuthScreen from './components/AuthScreen';
@@ -25,11 +31,11 @@ const App: React.FC = () => {
   const [filter, setFilter] = useState<CategoryFilter>('all');
   const [search, setSearch] = useState('');
   
-  // Theme State with Local Storage Persistence
-  const [themeIndex, setThemeIndex] = useState(3); // Default to Stars if no local storage
+  // Theme State
+  const [themeIndex, setThemeIndex] = useState(3); 
 
-  // Stats State
-  const [clickVersion, setClickVersion] = useState(0); // Used to trigger re-calc of top sites
+  // Stats / Local Storage Version Trigger
+  const [localDataVersion, setLocalDataVersion] = useState(0); 
 
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0, siteUrl: null });
   const [showAddModal, setShowAddModal] = useState(false);
@@ -39,6 +45,9 @@ const App: React.FC = () => {
   const [newName, setNewName] = useState('');
   const [newTags, setNewTags] = useState('');
   const [newCat, setNewCat] = useState('custom');
+
+  // Drag & Drop State
+  const [draggedPinnedIndex, setDraggedPinnedIndex] = useState<number | null>(null);
 
   // Load Sites
   useEffect(() => {
@@ -52,7 +61,6 @@ const App: React.FC = () => {
     try {
       const savedMode = localStorage.getItem(WALLPAPER_KEY);
       if (savedMode) {
-        // Find theme with this mode
         const foundIndex = THEMES.findIndex(t => t.bgMode === savedMode);
         if (foundIndex !== -1) {
           setThemeIndex(foundIndex);
@@ -62,11 +70,6 @@ const App: React.FC = () => {
       console.error("Failed to load wallpaper preference", e);
     }
   }, []);
-
-  // Compute Top Sites locally
-  const topSites = useMemo(() => {
-    return getTopSites(sites, 20);
-  }, [sites, clickVersion]);
 
   const currentTheme = THEMES[themeIndex];
 
@@ -83,7 +86,6 @@ const App: React.FC = () => {
     setThemeIndex((prev) => {
       const nextIndex = (prev + 1) % THEMES.length;
       const nextTheme = THEMES[nextIndex];
-      // Save preference
       try {
         localStorage.setItem(WALLPAPER_KEY, nextTheme.bgMode);
       } catch(e) { console.error(e); }
@@ -97,50 +99,85 @@ const App: React.FC = () => {
   };
 
   const handleSiteClick = (site: Site) => {
-    // Record locally using objectId if available (cloud) or url (legacy)
     recordClick(site.objectId || site.u);
-    // Force update of top sites
-    setClickVersion(v => v + 1);
+    setLocalDataVersion(v => v + 1);
   };
 
-  const filteredSites = sites.filter(site => {
-    if (filter !== 'all') {
-      if (filter === 'custom') {
-         if (site.c !== 'custom') return false; 
-      } else if (filter === '5star') {
-        if ((site.rating || 0) !== 5) return false;
-      } else {
-        if (site.c !== filter) return false;
+  const handleToggleLocalPin = (site: Site) => {
+    toggleLocalPin(site.objectId || site.u);
+    setLocalDataVersion(v => v + 1);
+  };
+
+  // --- Sorting & Filtering Logic ---
+  
+  // 1. Favorites View Logic
+  const favoritesData = useMemo(() => {
+    if (filter === 'favorites') {
+      return getFavorites(sites);
+    }
+    return { pinned: [], frequent: [] };
+  }, [sites, filter, localDataVersion]);
+
+  // 2. Standard View Logic
+  const filteredSites = useMemo(() => {
+    if (filter === 'favorites') return []; // Handled separately
+
+    return sites.filter(site => {
+      if (filter !== 'all') {
+        if (filter === 'custom') {
+           if (site.c !== 'custom') return false; 
+        } else if (filter === '5star') {
+          if ((site.rating || 0) !== 5) return false;
+        } else {
+          if (site.c !== filter) return false;
+        }
       }
-    }
-    
-    if (search) {
-      const lowerSearch = search.toLowerCase();
-      const inName = site.n.toLowerCase().includes(lowerSearch);
-      const inTags = site.t.some(t => t.toLowerCase().includes(lowerSearch));
-      if (!inName && !inTags) return false;
-    }
-    
-    return true;
-  });
+      
+      if (search) {
+        const lowerSearch = search.toLowerCase();
+        const inName = site.n.toLowerCase().includes(lowerSearch);
+        const inTags = site.t.some(t => t.toLowerCase().includes(lowerSearch));
+        if (!inName && !inTags) return false;
+      }
+      
+      return true;
+    }).sort((a, b) => {
+      // Admin Pin Priority
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+      // Rating sorting (hide 1-2 stars at bottom)
+      const rA = a.rating || 0;
+      const rB = b.rating || 0;
+      const isBadA = rA > 0 && rA <= 2;
+      const isBadB = rB > 0 && rB <= 2;
+      if (isBadA !== isBadB) return isBadA ? 1 : -1;
+      return 0;
+    });
+  }, [sites, filter, search]);
 
-  const sortedSites = [...filteredSites].sort((a, b) => {
-    // 1. Pinned items first
-    if (a.pinned !== b.pinned) {
-        return a.pinned ? -1 : 1;
-    }
-    // 2. Rating sorting (avoid 1-2 stars unless at bottom)
-    const rA = a.rating || 0;
-    const rB = b.rating || 0;
-    const isBadA = rA > 0 && rA <= 2;
-    const isBadB = rB > 0 && rB <= 2;
 
-    if (isBadA !== isBadB) {
-        return isBadA ? 1 : -1;
-    }
-    // Default order
-    return 0;
-  });
+  // --- Drag & Drop Handlers for Pinned Items ---
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedPinnedIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+    // Transparent drag image or default
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault(); // Necessary to allow dropping
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
+    e.preventDefault();
+    if (draggedPinnedIndex === null || draggedPinnedIndex === dropIndex) return;
+    
+    reorderPinned(draggedPinnedIndex, dropIndex);
+    setDraggedPinnedIndex(null);
+    setLocalDataVersion(v => v + 1); // Refresh list
+  };
+
+
+  // --- Standard Event Handlers ---
 
   const handleAddTag = async (url: string) => {
     const tag = prompt("输入新标签:");
@@ -148,7 +185,6 @@ const App: React.FC = () => {
       const target = sites.find(s => s.u === url);
       if (target) {
         const updatedSite = { ...target, t: [...target.t, tag] };
-        // Optimistic update
         setSites(sites.map(s => s.u === url ? updatedSite : s));
         await updateSite(updatedSite);
       }
@@ -166,9 +202,7 @@ const App: React.FC = () => {
   };
 
   const closeContextMenu = () => {
-    if (contextMenu.visible) {
-      setContextMenu({ ...contextMenu, visible: false });
-    }
+    if (contextMenu.visible) setContextMenu({ ...contextMenu, visible: false });
   };
 
   const handleRate = async (rating: number) => {
@@ -247,7 +281,6 @@ const App: React.FC = () => {
       pinned: false
     };
 
-    // Optimistic UI update (add to top)
     setSites([tempSite, ...sites]);
     setShowAddModal(false);
     setNewUrl('');
@@ -258,7 +291,6 @@ const App: React.FC = () => {
 
     try {
         const created = await createSite(tempSite);
-        // Replace temp site with real one containing objectId from cloud
         setSites(prev => prev.map(s => s.u === tempSite.u ? created : s));
     } catch(e) {
         console.error(e);
@@ -282,7 +314,7 @@ const App: React.FC = () => {
   }, [contextMenu]);
 
   const currentSite = sites.find(s => s.u === contextMenu.siteUrl);
-  const isPinned = currentSite?.pinned;
+  const isAdminPinned = currentSite?.pinned;
 
   if (!isAuthenticated) {
     return (
@@ -301,7 +333,7 @@ const App: React.FC = () => {
         <Sidebar 
           currentFilter={filter} 
           setFilter={setFilter}
-          topSites={topSites}
+          topSites={[]} // Not used anymore
           onTagAdd={handleAddTag}
           onContextMenu={handleContextMenu}
           onSiteClick={handleSiteClick}
@@ -330,18 +362,80 @@ const App: React.FC = () => {
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3.5">
-              {sortedSites.map((site, index) => (
-                <SiteCard 
-                  key={site.objectId || site.u + index} 
-                  site={site} 
-                  onTagAdd={handleAddTag} 
-                  onContextMenu={handleContextMenu}
-                  onClick={handleSiteClick}
-                  themeName={currentTheme.name}
-                />
-              ))}
-            </div>
+            
+            {/* --- FAVORITES VIEW --- */}
+            {filter === 'favorites' ? (
+               <div className="flex flex-col gap-8">
+                 {/* Pinned Section */}
+                 {favoritesData.pinned.length > 0 && (
+                   <section>
+                      <h3 className="text-[var(--text-sub)] text-sm font-bold mb-3 uppercase tracking-wider flex items-center gap-2">
+                        <span>📌</span> 置顶 (可拖动排序)
+                      </h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3.5">
+                        {favoritesData.pinned.map((site, index) => (
+                           <SiteCard 
+                             key={site.objectId || site.u}
+                             site={site}
+                             onTagAdd={handleAddTag}
+                             onContextMenu={handleContextMenu}
+                             onClick={handleSiteClick}
+                             themeName={currentTheme.name}
+                             isLocalPinned={true}
+                             onToggleLocalPin={handleToggleLocalPin}
+                             // Drag Props
+                             isDraggable={true}
+                             onDragStart={(e) => handleDragStart(e, index)}
+                             onDragOver={(e) => handleDragOver(e, index)}
+                             onDrop={(e) => handleDrop(e, index)}
+                           />
+                        ))}
+                      </div>
+                   </section>
+                 )}
+
+                 {/* Frequent Section */}
+                 <section>
+                    <h3 className="text-[var(--text-sub)] text-sm font-bold mb-3 uppercase tracking-wider flex items-center gap-2">
+                      <span>🔥</span> 常用推荐
+                    </h3>
+                    {favoritesData.frequent.length === 0 && (
+                       <div className="text-[var(--text-sub)] opacity-60 text-sm">暂无数据，多点击一些网站试试吧！</div>
+                    )}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3.5">
+                       {favoritesData.frequent.map((site) => (
+                          <SiteCard 
+                             key={site.objectId || site.u}
+                             site={site}
+                             onTagAdd={handleAddTag}
+                             onContextMenu={handleContextMenu}
+                             onClick={handleSiteClick}
+                             themeName={currentTheme.name}
+                             isLocalPinned={false}
+                             onToggleLocalPin={handleToggleLocalPin}
+                          />
+                       ))}
+                    </div>
+                 </section>
+               </div>
+            ) : (
+            /* --- STANDARD VIEW --- */
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3.5">
+                {filteredSites.map((site, index) => (
+                  <SiteCard 
+                    key={site.objectId || site.u + index} 
+                    site={site} 
+                    onTagAdd={handleAddTag} 
+                    onContextMenu={handleContextMenu}
+                    onClick={handleSiteClick}
+                    themeName={currentTheme.name}
+                    isLocalPinned={isLocallyPinned(site.objectId || site.u)}
+                    onToggleLocalPin={handleToggleLocalPin}
+                  />
+                ))}
+              </div>
+            )}
+
           </div>
 
           <button 
@@ -425,7 +519,7 @@ const App: React.FC = () => {
           
           {isAdmin && (
             <div onClick={handlePin} className="p-2 text-sm text-[#ddd] cursor-pointer hover:bg-[#333] hover:text-white rounded flex items-center justify-between">
-              <span>{isPinned ? '📍 取消置顶' : '📍 置顶'}</span>
+              <span>{isAdminPinned ? '📍 取消全局置顶' : '📍 全局置顶'}</span>
             </div>
           )}
 

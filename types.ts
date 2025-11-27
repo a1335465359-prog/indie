@@ -19,6 +19,7 @@ export interface Theme {
 
 export type CategoryFilter = 
   | 'all' 
+  | 'favorites'
   | '5star' 
   | 'custom' 
   | 'shein' 

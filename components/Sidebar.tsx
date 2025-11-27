@@ -6,7 +6,7 @@ import SiteCard from './SiteCard';
 interface SidebarProps {
   currentFilter: CategoryFilter;
   setFilter: (filter: CategoryFilter) => void;
-  topSites: Site[];
+  topSites: Site[]; // Kept for prop compatibility but unused for rendering grid
   onTagAdd: (url: string) => void;
   onContextMenu: (e: React.MouseEvent, site: Site) => void;
   onSiteClick: (site: Site) => void;
@@ -16,7 +16,6 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ 
   currentFilter, 
   setFilter, 
-  topSites, 
   onTagAdd, 
   onContextMenu, 
   onSiteClick,
@@ -69,29 +68,8 @@ const Sidebar: React.FC<SidebarProps> = ({
 
       <div className="flex flex-row md:flex-col gap-1 md:gap-0 min-w-max">
         
-        {/* Local Favorites Section - Only show if we have data */}
-        {topSites.length > 0 && (
-          <div className="hidden md:block mb-4">
-             <GroupLabel label="我的常用" />
-             <div className="flex flex-col gap-2 px-1">
-               {topSites.map(site => (
-                 <div key={site.objectId || site.u} className="scale-95 origin-left w-full">
-                    {/* Render a slightly compacted version or standard card */}
-                    <SiteCard 
-                      site={site} 
-                      onTagAdd={onTagAdd} 
-                      onContextMenu={onContextMenu} 
-                      onClick={onSiteClick}
-                      themeName={themeName}
-                    />
-                 </div>
-               ))}
-             </div>
-             <div className="w-full h-px bg-[var(--glass-border)] my-3"></div>
-          </div>
-        )}
-
-        <GroupLabel label="库" />
+        <GroupLabel label="Library" />
+        <NavItem filter="favorites" label="我的常用" />
         <NavItem filter="all" label="全部网站" />
         <NavItem filter="5star" label="五星精选" />
         <NavItem filter="custom" label="网友共创" />

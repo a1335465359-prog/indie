@@ -108,6 +108,15 @@ const App: React.FC = () => {
     setLocalDataVersion(v => v + 1);
   };
 
+  const handleLocalPinFromContext = () => {
+    if (!contextMenu.siteUrl) return;
+    const target = sites.find(s => s.u === contextMenu.siteUrl);
+    if (target) {
+        handleToggleLocalPin(target);
+        closeContextMenu();
+    }
+  };
+
   // --- Sorting & Filtering Logic ---
   
   // 1. Favorites View Logic
@@ -365,58 +374,52 @@ const App: React.FC = () => {
             
             {/* --- FAVORITES VIEW --- */}
             {filter === 'favorites' ? (
-               <div className="flex flex-col gap-8">
-                 {/* Pinned Section */}
-                 {favoritesData.pinned.length > 0 && (
-                   <section>
-                      <h3 className="text-[var(--text-sub)] text-sm font-bold mb-3 uppercase tracking-wider flex items-center gap-2">
-                        <span>📌</span> 置顶 (可拖动排序)
-                      </h3>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3.5">
-                        {favoritesData.pinned.map((site, index) => (
-                           <SiteCard 
-                             key={site.objectId || site.u}
-                             site={site}
-                             onTagAdd={handleAddTag}
-                             onContextMenu={handleContextMenu}
-                             onClick={handleSiteClick}
-                             themeName={currentTheme.name}
-                             isLocalPinned={true}
-                             onToggleLocalPin={handleToggleLocalPin}
-                             // Drag Props
-                             isDraggable={true}
-                             onDragStart={(e) => handleDragStart(e, index)}
-                             onDragOver={(e) => handleDragOver(e, index)}
-                             onDrop={(e) => handleDrop(e, index)}
-                           />
-                        ))}
-                      </div>
-                   </section>
-                 )}
-
-                 {/* Frequent Section */}
-                 <section>
-                    <h3 className="text-[var(--text-sub)] text-sm font-bold mb-3 uppercase tracking-wider flex items-center gap-2">
-                      <span>🔥</span> 常用推荐
-                    </h3>
-                    {favoritesData.frequent.length === 0 && (
-                       <div className="text-[var(--text-sub)] opacity-60 text-sm">暂无数据，多点击一些网站试试吧！</div>
-                    )}
+               <div className="flex flex-col gap-6">
+                 {/* Combined Grid: Pinned first, then Frequent */}
+                 {(favoritesData.pinned.length > 0 || favoritesData.frequent.length > 0) ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3.5">
-                       {favoritesData.frequent.map((site) => (
+                      
+                      {/* Pinned Items (Draggable) */}
+                      {favoritesData.pinned.map((site, index) => (
                           <SiteCard 
-                             key={site.objectId || site.u}
-                             site={site}
-                             onTagAdd={handleAddTag}
-                             onContextMenu={handleContextMenu}
-                             onClick={handleSiteClick}
-                             themeName={currentTheme.name}
-                             isLocalPinned={false}
-                             onToggleLocalPin={handleToggleLocalPin}
+                            key={site.objectId || site.u}
+                            site={site}
+                            onTagAdd={handleAddTag}
+                            onContextMenu={handleContextMenu}
+                            onClick={handleSiteClick}
+                            themeName={currentTheme.name}
+                            isLocalPinned={true}
+                            onToggleLocalPin={handleToggleLocalPin}
+                            // Drag Props
+                            isDraggable={true}
+                            onDragStart={(e) => handleDragStart(e, index)}
+                            onDragOver={(e) => handleDragOver(e, index)}
+                            onDrop={(e) => handleDrop(e, index)}
                           />
-                       ))}
+                      ))}
+
+                      {/* Frequent Items (Algorithm Sorted, Not Draggable) */}
+                      {favoritesData.frequent.map((site) => (
+                          <SiteCard 
+                            key={site.objectId || site.u}
+                            site={site}
+                            onTagAdd={handleAddTag}
+                            onContextMenu={handleContextMenu}
+                            onClick={handleSiteClick}
+                            themeName={currentTheme.name}
+                            isLocalPinned={false} // Force false to not show pin button on card face
+                            onToggleLocalPin={handleToggleLocalPin}
+                          />
+                      ))}
+
                     </div>
-                 </section>
+                 ) : (
+                    <div className="flex flex-col items-center justify-center h-64 text-[var(--text-sub)] opacity-60">
+                         <div className="text-4xl mb-4">📌</div>
+                         <div className="text-lg">暂无常用网站</div>
+                         <div className="text-sm mt-2">在网站上右键点击 "设为常用" 添加</div>
+                     </div>
+                 )}
                </div>
             ) : (
             /* --- STANDARD VIEW --- */
@@ -515,6 +518,12 @@ const App: React.FC = () => {
                )
             })}
           </div>
+          <div className="h-px bg-[#444] my-1"></div>
+          
+          <div onClick={handleLocalPinFromContext} className="p-2 text-sm text-[#ddd] cursor-pointer hover:bg-[#333] hover:text-white rounded flex items-center justify-between">
+            <span>{isLocallyPinned(contextMenu.siteUrl || '') ? '🚫 取消常用' : '📌 设为常用'}</span>
+          </div>
+
           <div className="h-px bg-[#444] my-1"></div>
           
           {isAdmin && (

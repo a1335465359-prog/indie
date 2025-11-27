@@ -151,8 +151,6 @@ const AuroraBackground: React.FC<AuroraBackgroundProps> = ({ mode }) => {
       }
       ctx.globalAlpha = 1.0;
 
-      // Vertical lines removed per request for horizontal-only aesthetic
-      
       ctx.stroke();
       ctx.restore();
     };
@@ -283,7 +281,6 @@ const AuroraBackground: React.FC<AuroraBackgroundProps> = ({ mode }) => {
             blobs.push(new Blob(window.innerWidth, window.innerHeight, colors[i]));
         }
     }
-    // Only init blobs if empty or mode changed (handled by useEffect)
     if(blobs.length === 0) initBlobs();
 
     const drawBlobs = () => {
@@ -308,13 +305,11 @@ const AuroraBackground: React.FC<AuroraBackgroundProps> = ({ mode }) => {
         const fontSize = 16;
         const cols = Math.floor(w / fontSize);
         
-        // Init drops if size mismatch
         if (matrixDrops.length !== cols) {
             matrixDrops.length = 0;
             for(let i=0; i<cols; i++) matrixDrops.push(Math.random() * h);
         }
 
-        // Fade out slightly to create trails
         ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
         ctx.fillRect(0, 0, w, h);
 
@@ -364,7 +359,6 @@ const AuroraBackground: React.FC<AuroraBackgroundProps> = ({ mode }) => {
             node.x += node.vx;
             node.y += node.vy;
 
-            // Bounce
             if (node.x < 0 || node.x > w) node.vx *= -1;
             if (node.y < 0 || node.y > h) node.vy *= -1;
 
@@ -372,7 +366,6 @@ const AuroraBackground: React.FC<AuroraBackgroundProps> = ({ mode }) => {
             ctx.arc(node.x, node.y, 2, 0, Math.PI * 2);
             ctx.fill();
 
-            // Connect
             for (let j = i + 1; j < nodes.length; j++) {
                 const other = nodes[j];
                 const dx = node.x - other.x;
@@ -391,87 +384,171 @@ const AuroraBackground: React.FC<AuroraBackgroundProps> = ({ mode }) => {
         }
     };
 
-    // 7. Sunset Vaporwave
-    const drawSunset = () => {
+    // 7. Vaporwave Grid (Replaces Sunset)
+    const drawVaporwave = () => {
         const w = canvas.width;
         const h = canvas.height;
+        const horizon = h * 0.6;
         
-        // Gradient Sky
-        const skyGrad = ctx.createLinearGradient(0, 0, 0, h);
-        skyGrad.addColorStop(0, '#2a0a2e');
-        skyGrad.addColorStop(0.5, '#c026d3'); // Purple-ish
-        skyGrad.addColorStop(1, '#f59e0b');   // Orange
+        // --- Sky ---
+        // Smooth retro gradient: Deep Purple -> Pink -> Orange Glow at horizon
+        const skyGrad = ctx.createLinearGradient(0, 0, 0, horizon);
+        skyGrad.addColorStop(0, '#10002b'); // Deepest violet
+        skyGrad.addColorStop(0.4, '#240046'); 
+        skyGrad.addColorStop(0.8, '#5a189a');
+        skyGrad.addColorStop(1, '#ff6d00'); // Orange Glow
         ctx.fillStyle = skyGrad;
-        ctx.fillRect(0, 0, w, h);
+        ctx.fillRect(0, 0, w, horizon);
 
-        // Sun
-        const sunY = h * 0.7;
-        const sunSize = h * 0.3;
-        const sunGrad = ctx.createLinearGradient(0, sunY - sunSize, 0, sunY + sunSize);
-        sunGrad.addColorStop(0, '#fbbf24');
-        sunGrad.addColorStop(1, '#ef4444');
-        
-        ctx.fillStyle = sunGrad;
+        // --- Ground ---
+        // Dark grid background
+        const groundGrad = ctx.createLinearGradient(0, horizon, 0, h);
+        groundGrad.addColorStop(0, '#10002b');
+        groundGrad.addColorStop(1, '#000000');
+        ctx.fillStyle = groundGrad;
+        ctx.fillRect(0, horizon, w, h - horizon);
+
+        // --- Perspective Grid ---
+        ctx.save();
         ctx.beginPath();
-        ctx.arc(w/2, sunY, sunSize, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.rect(0, horizon, w, h - horizon);
+        ctx.clip(); // Only draw below horizon
 
-        // Scanlines over sun
-        ctx.fillStyle = 'rgba(42, 10, 46, 0.5)';
-        for(let i=0; i<10; i++) {
-            const barH = i * 2 + 2;
-            const barY = sunY + (i*15);
-            if (barY < sunY + sunSize) {
-                ctx.fillRect(w/2 - sunSize, barY, sunSize*2, barH);
-            }
+        // Neon Pink/Purple Lines
+        ctx.strokeStyle = 'rgba(224, 170, 255, 0.4)'; 
+        ctx.lineWidth = 1.5;
+        ctx.shadowBlur = 5;
+        ctx.shadowColor = '#e0aaff';
+
+        const FOV = 250; 
+        const camHeight = 120; 
+        const gridSize = 80;
+        const speed = 80; 
+        
+        // Z Movement (towards viewer)
+        const zOffset = (time * speed) % gridSize;
+
+        ctx.beginPath();
+
+        // Horizontal Lines (moving towards viewer)
+        const zNear = 10;
+        const zFar = 2000;
+        
+        for(let z = zNear - zOffset; z < zFar; z += gridSize) {
+            if (z < 1) continue; 
+
+            const scale = FOV / z;
+            const screenY = horizon + camHeight * scale;
+
+            if (screenY > h) continue; 
+            if (screenY < horizon) continue; 
+
+            // Fade out near horizon
+            const alpha = Math.min(1, (screenY - horizon) / 50);
+            ctx.globalAlpha = alpha;
+
+            ctx.moveTo(0, screenY);
+            ctx.lineTo(w, screenY);
+        }
+        ctx.stroke();
+
+        // Vertical Lines (Perspective)
+        ctx.beginPath();
+        ctx.globalAlpha = 1.0;
+        // Make lines diverge from center
+        const centerX = w / 2;
+        // Draw lines every X units in world space
+        const worldWidth = 4000;
+        const xStep = 150; 
+        
+        for(let x = -worldWidth; x <= worldWidth; x += xStep) {
+             // Project start (horizon) and end (screen bottom)
+             // Simple perspective projection: xScreen = (xWorld / z) * FOV + centerX
+             // At horizon, z is infinity -> xScreen = centerX (Vanishing Point)
+             
+             // We just draw lines from Vanishing Point (centerX, horizon) 
+             // to projected point at a near Z plane or bottom of screen.
+             
+             // To make it look correct with the scrolling horizontal lines, 
+             // these static lines originating from vanishing point work well for "infinite" road
+             
+             // Calculate x at bottom of screen (z = camHeight / (h - horizon) * FOV ?)
+             // Inverse projection: z = FOV * camHeight / (y - horizon)
+             // at y = h:
+             const zBottom = FOV * camHeight / (h - horizon);
+             const scaleBottom = FOV / zBottom; // (h-horizon)/camHeight
+             
+             // xScreen = x * scale + centerX
+             const xBottom = x * scaleBottom + centerX;
+             
+             // Optimization: Cull lines outside screen
+             if (xBottom < -500 || xBottom > w + 500) continue;
+
+             const alpha = Math.max(0, 1 - (Math.abs(x) / 3000)); // Fade edges
+             ctx.globalAlpha = alpha * 0.5;
+
+             ctx.moveTo(centerX, horizon);
+             ctx.lineTo(xBottom, h);
         }
 
-        // Simple fog/clouds moving
-        const cloudSpeed = time * 20;
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
-        for(let i=0; i<5; i++) {
-            const y = h - (i * 50) - 50;
-            const x = ((i * 300) + cloudSpeed) % (w + 400) - 200;
-            ctx.beginPath();
-            ctx.ellipse(x, y, 200, 40, 0, 0, Math.PI*2);
-            ctx.fill();
-        }
+        ctx.stroke();
+        ctx.restore();
     };
 
-    // 8. Snow (Ice Theme)
-    const snowflakes: {x: number, y: number, r: number, vx: number, vy: number}[] = [];
+    // 8. Snow (Updated for better snow feeling)
+    const snowflakes: {x: number, y: number, r: number, vx: number, vy: number, alpha: number}[] = [];
     const drawSnow = () => {
         const w = canvas.width;
         const h = canvas.height;
         
-        if (snowflakes.length < 200) {
+        // Init Snowflakes
+        // Fewer particles but better quality
+        if (snowflakes.length < 150) {
             snowflakes.push({
                 x: Math.random() * w,
-                y: -10,
-                r: Math.random() * 3 + 1,
-                vx: (Math.random() - 0.5) * 1,
-                vy: Math.random() * 2 + 1
+                y: Math.random() * h - h, // Start above
+                r: Math.random() * 2.5 + 1, // Size variation
+                vx: 0, 
+                vy: Math.random() * 1.5 + 0.5, // Fall speed
+                alpha: Math.random() * 0.6 + 0.4 // Opacity
             });
         }
         
+        // Background: Dark Cold Blue
         ctx.fillStyle = '#0f172a';
         ctx.fillRect(0, 0, w, h);
         
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+        ctx.fillStyle = '#ffffff'; // Pure White
+        
         for (let i = 0; i < snowflakes.length; i++) {
             const flake = snowflakes[i];
-            flake.x += flake.vx + Math.sin(time + i) * 0.5;
+            
+            // Movement
+            // Add slight sine wave drift based on time and index to simulate wind turbulence
+            const drift = Math.sin(time + i * 0.1) * 0.5;
+            flake.x += flake.vx + drift;
             flake.y += flake.vy;
             
+            // Loop
             if (flake.y > h) {
                 flake.y = -10;
                 flake.x = Math.random() * w;
             }
+            if (flake.x > w) flake.x = 0;
+            if (flake.x < 0) flake.x = w;
             
+            // Draw
+            ctx.globalAlpha = flake.alpha;
             ctx.beginPath();
             ctx.arc(flake.x, flake.y, flake.r, 0, Math.PI * 2);
+            
+            // Small glow for "fluffy" feel
+            ctx.shadowBlur = 4;
+            ctx.shadowColor = 'white';
             ctx.fill();
+            ctx.shadowBlur = 0;
         }
+        ctx.globalAlpha = 1.0;
     };
 
     // 9. Fire (Limbo Theme)
@@ -484,7 +561,7 @@ const AuroraBackground: React.FC<AuroraBackgroundProps> = ({ mode }) => {
         ctx.fillStyle = '#11001c';
         ctx.fillRect(0, 0, w, h);
         
-        ctx.globalCompositeOperation = 'lighter'; // Additive blending
+        ctx.globalCompositeOperation = 'lighter'; 
         
         if (fireParticles.length < 200) {
             fireParticles.push({
@@ -502,10 +579,9 @@ const AuroraBackground: React.FC<AuroraBackgroundProps> = ({ mode }) => {
         for (let i = 0; i < fireParticles.length; i++) {
             const p = fireParticles[i];
             p.life++;
-            // Wavy motion using sine, frequency higher for realistic flicker
             p.x += Math.sin(time * 5 + p.offset) * 0.5;
             p.y += p.vy;
-            p.size *= 0.98; // Shrink
+            p.size *= 0.98; 
             
             if (p.life > p.maxLife || p.size < 0.5) {
                 p.x = Math.random() * w;
@@ -518,7 +594,6 @@ const AuroraBackground: React.FC<AuroraBackgroundProps> = ({ mode }) => {
             const lifeRatio = p.life / p.maxLife;
             const alpha = 1 - lifeRatio;
             
-            // Magical Fire Colors: Purple core -> Dark Violet edge
             const r = Math.floor(180 - lifeRatio * 100);
             const g = Math.floor(50 - lifeRatio * 50);
             const b = Math.floor(255 - lifeRatio * 50);
@@ -531,7 +606,7 @@ const AuroraBackground: React.FC<AuroraBackgroundProps> = ({ mode }) => {
         ctx.globalCompositeOperation = 'source-over';
     };
 
-    // 10. Sakura (Falling Petals)
+    // 10. Sakura
     const petals: {x: number, y: number, w: number, h: number, angle: number, spin: number, vy: number, vx: number}[] = [];
     const drawSakura = () => {
         const w = canvas.width;
@@ -553,7 +628,6 @@ const AuroraBackground: React.FC<AuroraBackgroundProps> = ({ mode }) => {
             });
         }
         
-        // Transparent pale pink to avoid blocking text
         ctx.fillStyle = 'rgba(255, 235, 240, 0.25)';
         
         for (let i = 0; i < petals.length; i++) {
@@ -585,7 +659,7 @@ const AuroraBackground: React.FC<AuroraBackgroundProps> = ({ mode }) => {
       else if (mode === 'stars') drawStars();
       else if (mode === 'matrix') drawMatrix();
       else if (mode === 'neural') drawNeural();
-      else if (mode === 'sunset') drawSunset();
+      else if (mode === 'sunset') drawVaporwave(); // Renamed visual function
       else if (mode === 'snow') drawSnow();
       else if (mode === 'fire') drawFire();
       else if (mode === 'sakura') drawSakura();

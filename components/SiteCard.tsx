@@ -38,7 +38,7 @@ const SiteCard: React.FC<SiteCardProps> = ({
   const cardStyle = {
     boxShadow: 'var(--card-shadow)',
     backdropFilter: 'blur(var(--card-blur))',
-    cursor: isDraggable ? 'move' : 'pointer'
+    cursor: isDraggable ? 'grab' : 'pointer'
   };
 
   let cardClass = `
@@ -53,7 +53,7 @@ const SiteCard: React.FC<SiteCardProps> = ({
   
   // Visual feedback for dragging
   if (isDraggable) {
-    cardClass += ` active:scale-95 active:opacity-80`;
+    cardClass += ` active:cursor-grabbing active:scale-95 active:opacity-90`;
   }
 
   const titleClass = `
@@ -87,41 +87,34 @@ const SiteCard: React.FC<SiteCardProps> = ({
       onDragOver={onDragOver}
       onDrop={onDrop}
     >
-      {/* Admin Pinned Indicator */}
+      {/* Admin Pinned Indicator (Global) */}
       {site.pinned && (
         <div className="absolute top-0 right-0 w-3 h-3 bg-[var(--accent)] rounded-bl-lg rounded-tr-lg shadow-[0_0_5px_var(--accent)] z-10" title="管理员置顶" />
       )}
       
-      {/* Local Pin Button (Visible on hover or if pinned locally) */}
-      {(isLocalPinned || onToggleLocalPin) && (
+      {/* Local Pin Button - Only visible if pinned (Active State) */}
+      {isLocalPinned && onToggleLocalPin && (
         <button
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
             if (onToggleLocalPin) onToggleLocalPin(site);
           }}
-          className={`
-            stop-propagation absolute top-1.5 right-1.5 w-6 h-6 flex items-center justify-center rounded-full
-            transition-all duration-200 z-20
-            ${isLocalPinned 
-               ? 'bg-[var(--accent)] text-black opacity-100 shadow-[0_0_8px_var(--accent)]' 
-               : 'bg-[var(--glass-border)] text-[var(--text-sub)] opacity-0 group-hover:opacity-100 hover:bg-[var(--text-main)] hover:text-black'
-            }
-          `}
-          title={isLocalPinned ? "取消常用钉住" : "钉住到常用"}
+          className="stop-propagation absolute top-1.5 right-1.5 w-6 h-6 flex items-center justify-center rounded-full transition-all duration-200 z-20 bg-[var(--accent)] text-black opacity-100 shadow-[0_0_8px_var(--accent)] hover:scale-110"
+          title="取消常用钉住"
         >
-          <span className="text-xs transform -rotate-45">📌</span>
+          <span className="text-xs">📌</span>
         </button>
       )}
 
       {/* Drag Handle for Pinned Items */}
       {isDraggable && (
-        <div className="absolute top-1/2 left-1 -translate-y-1/2 opacity-0 group-hover:opacity-50 text-[var(--text-sub)] cursor-grab">
+        <div className="stop-propagation absolute top-1/2 left-1 -translate-y-1/2 opacity-0 group-hover:opacity-60 text-[var(--text-sub)] text-xl cursor-grab active:cursor-grabbing px-1">
           ⋮⋮
         </div>
       )}
 
-      <div className={isDraggable ? "pl-2" : ""}>
+      <div className={isDraggable ? "pl-4 transition-all" : ""}>
         <div className={titleClass}>{site.n}</div>
         <div className="text-[#ffd700] text-[11px] tracking-widest h-4 drop-shadow-sm">{stars}</div>
         <div className="text-[11px] text-[var(--text-sub)] font-mono opacity-80">{domain}</div>

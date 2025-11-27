@@ -1,0 +1,999 @@
+GEMINI_API_KEY=PLACEHOLDER_API_KEY
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+import React, { useState, useEffect } from 'react';
+import { Site, ContextMenuState, CategoryFilter } from './types';
+import { THEMES } from './constants';
+import { getSites, saveSites } from './services/storageService';
+import AuroraBackground from './components/AuroraBackground';
+import AuthScreen from './components/AuthScreen';
+import Sidebar from './components/Sidebar';
+import SiteCard from './components/SiteCard';
+
+const App: React.FC = () => {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  
+  const [sites, setSites] = useState<Site[]>([]);
+  const [filter, setFilter] = useState<CategoryFilter>('all');
+  const [search, setSearch] = useState('');
+  // Default to Stars theme (index 3 in THEMES array)
+  const [themeIndex, setThemeIndex] = useState(3);
+  
+  const [contextMenu, setContextMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0, siteUrl: null });
+  const [showAddModal, setShowAddModal] = useState(false);
+
+  // New Site Form State
+  const [newUrl, setNewUrl] = useState('');
+  const [newName, setNewName] = useState('');
+  const [newTags, setNewTags] = useState('');
+  const [newCat, setNewCat] = useState('custom');
+
+  useEffect(() => {
+    // Load sites
+    setSites(getSites());
+  }, []);
+
+  const currentTheme = THEMES[themeIndex];
+
+  useEffect(() => {
+    // Apply theme
+    const root = document.documentElement;
+    // Apply vars
+    Object.entries(currentTheme.vars).forEach(([key, value]) => {
+      // @ts-ignore
+      root.style.setProperty(key, value);
+    });
+  }, [themeIndex]);
+
+  const toggleTheme = () => {
+    setThemeIndex((prev) => (prev + 1) % THEMES.length);
+  };
+
+  const handleLogin = (admin: boolean) => {
+    setIsAuthenticated(true);
+    setIsAdmin(admin);
+  };
+
+  const filteredSites = sites.filter(site => {
+    // Category Filter
+    if (filter !== 'all') {
+      if (filter === 'custom') {
+         if (site.c !== 'custom') return false; 
+      } else if (filter === '5star') {
+        if ((site.rating || 0) !== 5) return false;
+      } else {
+        if (site.c !== filter) return false;
+      }
+    }
+    
+    // Search Filter
+    if (search) {
+      const lowerSearch = search.toLowerCase();
+      const inName = site.n.toLowerCase().includes(lowerSearch);
+      const inTags = site.t.some(t => t.toLowerCase().includes(lowerSearch));
+      if (!inName && !inTags) return false;
+    }
+    
+    return true;
+  });
+
+  const sortedSites = [...filteredSites].sort((a, b) => {
+    // 1. Pinned (Absolute Top)
+    if (a.pinned !== b.pinned) {
+        return a.pinned ? -1 : 1;
+    }
+
+    // Rating Logic
+    const rA = a.rating || 0;
+    const rB = b.rating || 0;
+
+    // Define categories:
+    // Good: Rating > 2 OR Rating is 0/undefined (New/Unrated sites start in middle)
+    // Bad: Rating is 1 or 2
+    const isBadA = rA > 0 && rA <= 2;
+    const isBadB = rB > 0 && rB <= 2;
+
+    // 2. Sink bad ratings to bottom
+    if (isBadA !== isBadB) {
+        return isBadA ? 1 : -1; // If A is bad, move it down (1). If B is bad, move A up (-1).
+    }
+
+    // 3. Keep existing insertion order for everything else (Stable Sort)
+    // or optionally sort good ratings by score
+    // if (rA !== rB) return rB - rA; 
+
+    return 0;
+  });
+
+  const handleAddTag = (url: string) => {
+    const tag = prompt("输入新标签:");
+    if (tag) {
+      const newSites = sites.map(s => {
+        if (s.u === url) {
+          return { ...s, t: [...s.t, tag] };
+        }
+        return s;
+      });
+      setSites(newSites);
+      saveSites(newSites);
+    }
+  };
+
+  const handleContextMenu = (e: React.MouseEvent, site: Site) => {
+    e.preventDefault();
+    setContextMenu({
+      visible: true,
+      x: e.clientX,
+      y: e.clientY,
+      siteUrl: site.u
+    });
+  };
+
+  const closeContextMenu = () => {
+    if (contextMenu.visible) {
+      setContextMenu({ ...contextMenu, visible: false });
+    }
+  };
+
+  const handleRate = (rating: number) => {
+    if (!contextMenu.siteUrl) return;
+    const newSites = sites.map(s => {
+      if (s.u === contextMenu.siteUrl) {
+        return { ...s, rating };
+      }
+      return s;
+    });
+    setSites(newSites);
+    saveSites(newSites);
+    closeContextMenu();
+  };
+
+  const handlePin = () => {
+    if (!isAdmin || !contextMenu.siteUrl) return;
+    const newSites = sites.map(s => {
+      if (s.u === contextMenu.siteUrl) {
+        return { ...s, pinned: !s.pinned };
+      }
+      return s;
+    });
+    setSites(newSites);
+    saveSites(newSites);
+    closeContextMenu();
+  };
+
+  const handleDelete = () => {
+    if (!isAdmin || !contextMenu.siteUrl) return;
+    if (confirm("确定删除此网站？")) {
+      const newSites = sites.filter(s => s.u !== contextMenu.siteUrl);
+      setSites(newSites);
+      saveSites(newSites);
+      closeContextMenu();
+    }
+  };
+
+  const handleRename = () => {
+    if (!contextMenu.siteUrl) return;
+    const newName = prompt("输入新名称:");
+    if (newName) {
+       const newSites = sites.map(s => {
+        if (s.u === contextMenu.siteUrl) {
+          return { ...s, n: newName };
+        }
+        return s;
+      });
+      setSites(newSites);
+      saveSites(newSites);
+      closeContextMenu();
+    }
+  };
+
+  const handleManageTags = () => {
+    if (!isAdmin || !contextMenu.siteUrl) return;
+    const site = sites.find(s => s.u === contextMenu.siteUrl);
+    if (!site) return;
+    const newTagsStr = prompt("编辑标签 (逗号分隔，留空则清空):", site.t.join(", "));
+    if (newTagsStr !== null) {
+      const newTagsArr = newTagsStr.trim() ? newTagsStr.split(/,|，/).map(s => s.trim()) : [];
+       const newSites = sites.map(s => {
+        if (s.u === contextMenu.siteUrl) {
+          return { ...s, t: newTagsArr };
+        }
+        return s;
+      });
+      setSites(newSites);
+      saveSites(newSites);
+      closeContextMenu();
+    }
+  };
+
+  const submitNewSite = () => {
+    if (!newUrl || !newName) return alert("请输入名称和网址");
+    let formattedUrl = newUrl;
+    if (!formattedUrl.startsWith('http')) formattedUrl = 'https://' + formattedUrl;
+
+    const newSite: Site = {
+      n: newName,
+      u: formattedUrl,
+      c: newCat,
+      t: newTags ? newTags.split(/,|，/) : ['网友推荐'],
+      rating: 0,
+      pinned: false
+    };
+
+    // Add new site to the BEGINNING of the list so it appears first
+    const newSites = [newSite, ...sites];
+    setSites(newSites);
+    saveSites(newSites);
+    setShowAddModal(false);
+    setNewUrl('');
+    setNewName('');
+    setNewTags('');
+    alert("添加成功！");
+    setFilter('custom');
+  };
+
+  const autoFillName = () => {
+     if (newUrl && !newName) {
+       try {
+         const urlObj = new URL(newUrl.startsWith('http') ? newUrl : 'https://' + newUrl);
+         setNewName(urlObj.hostname.replace('www.', '').split('.')[0]);
+       } catch (e) {}
+     }
+  };
+
+  // Click outside listener for context menu
+  useEffect(() => {
+    const handleClick = () => closeContextMenu();
+    window.addEventListener('click', handleClick);
+    return () => window.removeEventListener('click', handleClick);
+  }, [contextMenu]);
+
+  // Determine if the currently right-clicked site is pinned
+  const currentSite = sites.find(s => s.u === contextMenu.siteUrl);
+  const isPinned = currentSite?.pinned;
+
+  if (!isAuthenticated) {
+    return (
+      <>
+        <AuroraBackground mode="particles" />
+        <AuthScreen onLogin={handleLogin} />
+      </>
+    );
+  }
+
+  return (
+    <div className="flex w-full h-screen overflow-hidden relative text-[var(--text-main)] transition-colors duration-300 font-sans">
+      <AuroraBackground mode={currentTheme.bgMode} />
+      
+      <div className="relative z-10 flex w-full h-full max-w-[1920px] mx-auto p-4 gap-4 flex-col md:flex-row">
+        <Sidebar currentFilter={filter} setFilter={setFilter} />
+
+        <main 
+          className="flex-1 bg-[var(--glass-bg)] border border-[var(--glass-border)] rounded-2xl flex flex-col overflow-hidden relative transition-colors duration-500 shadow-2xl"
+          style={{ backdropFilter: 'blur(var(--panel-blur))' }}
+        >
+          <div className="p-4 md:px-6 md:py-3.5 flex justify-between items-center border-b border-[var(--glass-border)]">
+            <input 
+              type="text" 
+              placeholder="搜索..." 
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-[280px] py-2 px-3.5 rounded-lg border border-[var(--glass-border)] bg-white/10 text-[var(--text-main)] focus:bg-white/20 focus:border-[var(--accent)] outline-none transition-all placeholder-white/30"
+            />
+            <button 
+              onClick={toggleTheme} 
+              className="w-8 h-8 rounded-full bg-[var(--glass-border)] text-[var(--text-main)] flex items-center justify-center hover:bg-[var(--accent)] hover:text-black transition-colors"
+              title={`切换主题 (${currentTheme.name})`}
+            >
+              🎨
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3.5">
+              {sortedSites.map((site) => (
+                <SiteCard 
+                  key={site.u} 
+                  site={site} 
+                  onTagAdd={handleAddTag} 
+                  onContextMenu={handleContextMenu}
+                  themeName={currentTheme.name}
+                />
+              ))}
+            </div>
+          </div>
+
+          <button 
+            onClick={() => setShowAddModal(true)}
+            className="absolute bottom-8 right-8 w-[50px] h-[50px] rounded-full bg-[var(--accent)] text-black text-3xl flex items-center justify-center shadow-[0_0_20px_rgba(0,0,0,0.2)] hover:scale-110 hover:bg-white transition-all z-50 cursor-pointer"
+          >
+            +
+          </button>
+        </main>
+      </div>
+
+      {/* Add Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black/80 z-[200] flex items-center justify-center" onClick={() => setShowAddModal(false)}>
+          <div className="bg-[#222] p-6 rounded-2xl w-[380px] border border-white/20 text-white" onClick={e => e.stopPropagation()}>
+            <h3 className="mb-4 text-lg font-bold">添加新网站</h3>
+            <input 
+              value={newUrl} 
+              onChange={e => setNewUrl(e.target.value)} 
+              onBlur={autoFillName}
+              placeholder="网址 (https://...)" 
+              className="w-full p-3 bg-white/10 border border-white/10 rounded-lg mb-3 text-white outline-none"
+            />
+            <input 
+              value={newName} 
+              onChange={e => setNewName(e.target.value)} 
+              placeholder="网站名称" 
+              className="w-full p-3 bg-white/10 border border-white/10 rounded-lg mb-3 text-white outline-none"
+            />
+            <input 
+              value={newTags} 
+              onChange={e => setNewTags(e.target.value)} 
+              placeholder="标签 (逗号分隔)" 
+              className="w-full p-3 bg-white/10 border border-white/10 rounded-lg mb-3 text-white outline-none"
+            />
+            <select 
+              value={newCat} 
+              onChange={e => setNewCat(e.target.value)}
+              className="w-full p-3 bg-[#333] border border-white/10 rounded-lg mb-3 text-white outline-none"
+            >
+              <option value="custom">-- 默认分类 (Custom) --</option>
+              <option value="young">年轻 / 辣妹</option>
+              <option value="elegant">轻熟 / 通勤</option>
+              <option value="sport">运动 / 潮牌</option>
+              <option value="french">法式 / 极简</option>
+              <option value="gown">礼服 / 派对</option>
+              <option value="denim">牛仔 / 复古</option>
+              <option value="linen">棉麻 / 文青</option>
+              <option value="curve">大码 / 曲线</option>
+              <option value="fast">全球快时尚</option>
+              <option value="euro">欧洲 / 小众</option>
+              <option value="shein">SHEIN</option>
+            </select>
+            <button onClick={submitNewSite} className="w-full p-3 bg-[var(--accent)] text-black font-bold rounded-lg mb-2">保存</button>
+            <button onClick={() => setShowAddModal(false)} className="w-full p-3 bg-white/10 text-white font-bold rounded-lg">取消</button>
+          </div>
+        </div>
+      )}
+
+      {/* Context Menu */}
+      {contextMenu.visible && (
+        <div 
+          className="fixed bg-[#222] border border-[#444] rounded-lg p-1.5 z-[100] shadow-xl w-[140px]"
+          style={{ top: contextMenu.y, left: Math.min(contextMenu.x, window.innerWidth - 150) }}
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="flex justify-center gap-1 p-1">
+            {[1, 2, 3, 4, 5].map(num => {
+               const site = sites.find(s => s.u === contextMenu.siteUrl);
+               const currentRating = site?.rating || 0;
+               return (
+                 <span 
+                   key={num} 
+                   onClick={() => handleRate(num)}
+                   className={`text-lg cursor-pointer hover:text-[#ffd700] ${num <= currentRating ? 'text-[#ffd700]' : 'text-[#555]'}`}
+                 >
+                   ★
+                 </span>
+               )
+            })}
+          </div>
+          <div className="h-px bg-[#444] my-1"></div>
+          
+          {isAdmin && (
+            <div onClick={handlePin} className="p-2 text-sm text-[#ddd] cursor-pointer hover:bg-[#333] hover:text-white rounded flex items-center justify-between">
+              <span>{isPinned ? '📍 取消置顶' : '📍 置顶'}</span>
+            </div>
+          )}
+
+          <div onClick={handleRename} className="p-2 text-sm text-[#ddd] cursor-pointer hover:bg-[#333] hover:text-white rounded">
+            ✏️ 重命名
+          </div>
+          {isAdmin && (
+            <>
+              <div onClick={handleManageTags} className="p-2 text-sm text-[#ddd] cursor-pointer hover:bg-[#333] hover:text-white rounded">
+                🏷️ 管理标签
+              </div>
+              <div onClick={handleDelete} className="p-2 text-sm text-[#ff453a] cursor-pointer hover:bg-[#333] hover:text-white rounded">
+                🗑 删除网站
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default App;
+
+import { Site, Theme } from './types';
+
+export const THEMES: Theme[] = [
+  {
+    name: 'Cyberpunk',
+    bgMode: 'grid',
+    vars: {
+      '--bg-color': '#050505',
+      '--text-main': '#00f3ff',
+      '--text-sub': 'rgba(0, 243, 255, 0.7)',
+      '--glass-bg': 'rgba(0, 0, 0, 0.05)', // Almost invisible container
+      '--glass-surface': 'rgba(0, 0, 0, 0.2)', // Very clear cards
+      '--glass-border': 'rgba(0, 243, 255, 0.5)', 
+      '--card-shadow': '0 0 15px rgba(0, 243, 255, 0.1), inset 0 0 10px rgba(0, 243, 255, 0.05)', 
+      '--card-shadow-hover': '0 0 25px rgba(0, 243, 255, 0.6), inset 0 0 20px rgba(0, 243, 255, 0.2)',
+      '--card-hover': 'rgba(0, 243, 255, 0.05)',
+      '--sidebar-bg': 'rgba(0, 0, 0, 0.3)',
+      '--accent': '#ff0055',
+      '--orb1': '#ff0055',
+      '--orb2': '#00f3ff',
+      '--orb3': '#ffee00',
+      '--panel-blur': '0px',
+      '--card-blur': '0px',
+    } as React.CSSProperties
+  },
+  {
+    name: 'iOS',
+    bgMode: 'blobs',
+    vars: {
+      '--bg-color': '#f2f2f7',
+      '--text-main': '#000000',
+      '--text-sub': '#8e8e93',
+      '--glass-bg': 'rgba(255, 255, 255, 0.65)',
+      '--glass-surface': 'rgba(255, 255, 255, 0.5)',
+      '--glass-border': 'rgba(255, 255, 255, 0.4)',
+      '--card-shadow': '0 2px 10px rgba(0,0,0,0.05)',
+      '--card-shadow-hover': '0 5px 20px rgba(0,0,0,0.1)',
+      '--card-hover': 'rgba(255, 255, 255, 0.8)',
+      '--sidebar-bg': 'rgba(255, 255, 255, 0.75)',
+      '--accent': '#007aff',
+      '--orb1': '#007aff',
+      '--orb2': '#5ac8fa',
+      '--orb3': '#5856d6',
+      '--panel-blur': '50px',
+      '--card-blur': '20px',
+    } as React.CSSProperties
+  },
+  {
+    name: 'Ocean',
+    bgMode: 'waves',
+    vars: {
+      '--bg-color': '#001e36',
+      '--text-main': '#e0f7fa',
+      '--text-sub': '#80deea',
+      '--glass-bg': 'rgba(0, 15, 30, 0.25)',
+      '--glass-surface': 'rgba(0, 20, 40, 0.3)',
+      '--glass-border': 'rgba(128, 222, 234, 0.3)',
+      '--card-shadow': '0 4px 15px rgba(0, 0, 0, 0.2)',
+      '--card-shadow-hover': '0 0 15px rgba(0, 229, 255, 0.4)',
+      '--card-hover': 'rgba(0, 229, 255, 0.15)',
+      '--sidebar-bg': 'rgba(0, 20, 40, 0.3)',
+      '--accent': '#00e5ff',
+      '--orb1': '#00e5ff',
+      '--orb2': '#006064',
+      '--orb3': '#18ffff',
+      '--panel-blur': '20px',
+      '--card-blur': '10px',
+    } as React.CSSProperties
+  },
+  {
+    name: 'Stars',
+    bgMode: 'stars',
+    vars: {
+      '--bg-color': '#000000',
+      '--text-main': '#ffffff',
+      '--text-sub': 'rgba(255, 255, 255, 0.7)',
+      '--glass-bg': 'rgba(0, 0, 0, 0.1)',
+      '--glass-surface': 'rgba(255, 255, 255, 0.05)', // Extremely transparent
+      '--glass-border': 'rgba(255, 255, 255, 0.15)',
+      '--card-shadow': '0 0 0 transparent',
+      '--card-shadow-hover': '0 0 15px rgba(255, 255, 255, 0.2)',
+      '--card-hover': 'rgba(255, 255, 255, 0.1)',
+      '--sidebar-bg': 'rgba(0, 0, 0, 0.3)',
+      '--accent': '#a855f7',
+      '--orb1': '#ffffff',
+      '--orb2': '#ffffff',
+      '--orb3': '#ffffff',
+      '--panel-blur': '0px',
+      '--card-blur': '0px',
+    } as React.CSSProperties
+  },
+  {
+    name: 'Aurora',
+    bgMode: 'particles',
+    vars: {
+      '--bg-color': '#050714',
+      '--text-main': '#ffffff',
+      '--text-sub': 'rgba(255, 255, 255, 0.65)',
+      '--glass-bg': 'rgba(30, 30, 35, 0.3)',
+      '--glass-surface': 'rgba(40, 40, 45, 0.3)',
+      '--glass-border': 'rgba(255, 255, 255, 0.1)',
+      '--card-shadow': '0 4px 6px rgba(0,0,0,0.1)',
+      '--card-shadow-hover': '0 10px 15px rgba(0,0,0,0.2)',
+      '--card-hover': 'rgba(255, 255, 255, 0.1)',
+      '--sidebar-bg': 'rgba(20, 20, 25, 0.6)',
+      '--accent': '#00d2ff',
+      '--orb1': '#00ff9d',
+      '--orb2': '#bd00ff',
+      '--orb3': '#00b8ff',
+      '--panel-blur': '30px',
+      '--card-blur': '12px',
+    } as React.CSSProperties
+  }
+];
+
+export const INITIAL_SITES: Site[] = [
+    // SHEIN
+    {n:"SHEIN 美国", u:"https://us.shein.com", t:["北美","总部"], c:"shein"},
+    {n:"SHEIN 加拿大", u:"https://ca.shein.com", t:["北美","加元"], c:"shein"},
+    {n:"SHEIN 墨西哥", u:"https://www.shein.com.mx", t:["拉美","西语"], c:"shein"},
+    {n:"SHEIN 巴西", u:"https://br.shein.com", t:["南美","葡语"], c:"shein"},
+    {n:"SHEIN 阿根廷", u:"https://m.shein.com/arg/", t:["南美"], c:"shein"},
+    {n:"SHEIN 英国", u:"https://www.shein.co.uk", t:["欧洲","英镑"], c:"shein"},
+    {n:"SHEIN 西班牙", u:"https://es.shein.com", t:["欧洲","西语"], c:"shein"},
+    {n:"SHEIN 法国", u:"https://fr.shein.com", t:["欧洲","法语"], c:"shein"},
+    {n:"SHEIN 德国", u:"https://de.shein.com", t:["欧洲","德语"], c:"shein"},
+    {n:"SHEIN 意大利", u:"https://it.shein.com", t:["欧洲","意语"], c:"shein"},
+    {n:"SHEIN 荷兰", u:"https://nl.shein.com", t:["欧洲","荷语"], c:"shein"},
+    {n:"SHEIN 葡萄牙", u:"https://pt.shein.com", t:["欧洲","葡语"], c:"shein"},
+    {n:"SHEIN 瑞典", u:"https://se.shein.com", t:["北欧"], c:"shein"},
+    {n:"SHEIN 波兰", u:"https://pl.shein.com", t:["东欧"], c:"shein"},
+    {n:"SHEIN 丹麦", u:"https://dk.shein.com", t:["北欧"], c:"shein"},
+    {n:"SHEIN 罗马尼亚", u:"https://ro.shein.com", t:["东欧"], c:"shein"},
+    {n:"SHEIN 瑞士", u:"https://ch.shein.com", t:["中欧"], c:"shein"},
+    {n:"SHEIN 奥地利", u:"https://m.shein.com/at/", t:["中欧","德语"], c:"shein"},
+    {n:"SHEIN 日本", u:"https://jp.shein.com", t:["亚太","日语"], c:"shein"},
+    {n:"SHEIN 韩国", u:"https://kr.shein.com", t:["亚太","韩语"], c:"shein"},
+    {n:"SHEIN 新加坡", u:"https://sg.shein.com", t:["东南亚"], c:"shein"},
+    {n:"SHEIN 马来西亚", u:"https://my.shein.com", t:["东南亚"], c:"shein"},
+    {n:"SHEIN 泰国", u:"https://th.shein.com", t:["东南亚","泰语"], c:"shein"},
+    {n:"SHEIN 菲律宾", u:"https://ph.shein.com", t:["东南亚"], c:"shein"},
+    {n:"SHEIN 印尼", u:"https://id.shein.com", t:["东南亚"], c:"shein"},
+    {n:"SHEIN 越南", u:"https://www.shein.com.vn", t:["东南亚"], c:"shein"},
+    {n:"SHEIN 香港", u:"https://www.shein.com.hk", t:["亚太","繁体"], c:"shein"},
+    {n:"SHEIN 澳洲", u:"https://au.shein.com", t:["澳洲","澳元"], c:"shein"},
+    {n:"SHEIN 阿语区", u:"https://ar.shein.com", t:["中东","沙特"], c:"shein"},
+    {n:"SHEIN 以色列", u:"https://il.shein.com", t:["中东"], c:"shein"},
+    {n:"SHEIN 摩洛哥", u:"https://ma.shein.com", t:["北非"], c:"shein"},
+    {n:"SHEIN 南非", u:"https://za.shein.com", t:["非洲"], c:"shein"},
+    {n:"SHEIN EUR", u:"https://eur.shein.com", t:["欧盟","EUR"], c:"shein"},
+    {n:"SHEIN EUQS", u:"https://euqs.shein.com", t:["欧盟"], c:"shein"},
+    {n:"SHEIN ROE", u:"https://roe.shein.com", t:["全球"], c:"shein"},
+
+    // Young
+    {n:"Easy Clothes", u:"https://www.easy-clothes.us", t:["美国","休闲"], c:"young"},
+    {n:"Sungtin", u:"https://sungtin.com", t:["韩系","基础"], c:"young"},
+    {n:"White Fox", u:"https://whitefoxboutique.com.au", t:["Y2K","辣妹"], c:"young"},
+    {n:"Ongess", u:"https://www.ongess.com", t:["印花","度假"], c:"young"},
+    {n:"Cider", u:"https://www.shopcider.com", t:["Z世代","甜酷"], c:"young"},
+    {n:"Tata Dress", u:"https://www.tatadress.com", t:["牛仔","碎花"], c:"young"},
+    {n:"Stylewe", u:"https://www.stylewe.com", t:["性感","礼服"], c:"young"},
+    {n:"Bella Barnett", u:"https://www.bellabarnett.com", t:["夜店","亮片"], c:"young"},
+    {n:"Garage", u:"https://www.garageclothing.com", t:["运动","卫衣"], c:"young"},
+    {n:"Edikted", u:"https://edikted.com", t:["芭蕾core"], c:"young"},
+    {n:"Odd Muse", u:"https://oddmuse.co.uk", t:["极简","轻奢"], c:"young"},
+    {n:"Beginning Boutique", u:"https://www.beginningboutique.com", t:["澳洲","派对"], c:"young"},
+    {n:"I.AM.GIA", u:"https://iamgia.com", t:["机能","废土"], c:"young"},
+    {n:"Miaou", u:"https://miaou.com", t:["法式辣妹"], c:"young"},
+    {n:"Lioness", u:"https://lionessfashion.com", t:["极简","冷淡"], c:"young"},
+    {n:"Jaded London", u:"https://jadedldn.com", t:["街头","朋克"], c:"young"},
+    {n:"Romwe", u:"https://us.romwe.com", t:["低价","暗黑"], c:"young"},
+    {n:"Like My Choice", u:"https://likemychoice.com", t:["印花","波西米亚"], c:"young"},
+    {n:"Shop Allison", u:"https://shopallison.com", t:["亮片","派对"], c:"young"},
+    {n:"Mermaid Way", u:"https://mermaidway.com", t:["网纱","皮质"], c:"young"},
+    {n:"Lulus", u:"https://www.lulus.com", t:["仙女裙"], c:"young"},
+    {n:"Red Dress", u:"https://www.reddress.com", t:["名媛"], c:"young"},
+    {n:"Retro Stage", u:"https://www.retro-stage.com", t:["复古","50s"], c:"young"},
+    {n:"Choies", u:"https://www.choies.com", t:["爆品"], c:"young"},
+    {n:"Emery Rose", u:"https://www.shopemeryrose.com", t:["印花","平价"], c:"young"},
+    {n:"MOTF", u:"https://www.shopmotf.com", t:["少淑","通勤"], c:"young"},
+    {n:"Glassons", u:"https://www.glassons.com", t:["澳新","休闲"], c:"young"},
+
+    // Elegant
+    {n:"Chicwish", u:"https://www.chicwish.com", t:["复古","甜美"], c:"elegant"},
+    {n:"Coldwater Creek", u:"https://www.coldwatercreek.com", t:["成熟","自然"], c:"elegant"},
+    {n:"Vici Collection", u:"https://www.vicicollection.com", t:["轻奢","通勤"], c:"elegant"},
+    {n:"CutelyCovered", u:"https://cutelycovered.com", t:["教会","得体"], c:"elegant"},
+    {n:"Da Barretta", u:"https://dabaretta.com", t:["中年","优雅"], c:"elegant"},
+    {n:"Novodiva", u:"https://novodiva.com", t:["晚宴"], c:"elegant"},
+    {n:"Dissh", u:"https://dissh.com", t:["极简","棉麻"], c:"elegant"},
+    {n:"ASTR The Label", u:"https://www.astrthelabel.com", t:["西装","轻熟"], c:"elegant"},
+    {n:"Abigails", u:"https://www.abigails.shop", t:["中东","长袍"], c:"elegant"},
+    {n:"Rosie Dress", u:"https://www.rosiedress.com", t:["快时尚","通勤"], c:"elegant"},
+    {n:"Her Fashioned Life", u:"https://www.shopltk.com/explore/herfashionedlife", t:["OldMoney"], c:"elegant"},
+    {n:"LTK", u:"https://www.shopltk.com", t:["种草"], c:"elegant"},
+    {n:"Free People", u:"https://www.freepeople.com", t:["波西米亚"], c:"elegant"},
+    {n:"Oyrosy", u:"https://oyrosy.com", t:["西服"], c:"elegant"},
+    {n:"Hot Lula", u:"https://www.hotlula.com", t:["连衣裙"], c:"elegant"},
+    {n:"NA-KD", u:"https://www.na-kd.com", t:["北欧","通勤"], c:"elegant"},
+    {n:"Uoozee", u:"https://www.uoozeefashion.com", t:["混合印花"], c:"elegant"},
+    {n:"Tuckernuck", u:"https://tnuck.com", t:["贵妇","POLO"], c:"elegant"},
+    {n:"Orolay", u:"https://www.orolay.com", t:["羽绒"], c:"elegant"},
+    {n:"Ritaros", u:"https://www.ritaros.com/es", t:["西班牙","礼服"], c:"elegant"},
+    {n:"Vivaia", u:"https://www.vivaia.com", t:["环保鞋"], c:"elegant"},
+
+    // Sport
+    {n:"Popilush", u:"https://www.popilush.com", t:["塑形"], c:"sport"},
+    {n:"Oh Polly", u:"https://us.ohpolly.com", t:["瑜伽","紧身"], c:"sport"},
+    {n:"OQQ", u:"https://oqq.com", t:["连体"], c:"sport"},
+    {n:"PacSun", u:"https://www.pacsun.com", t:["滑板","潮牌"], c:"sport"},
+    {n:"Aelfric Eden", u:"https://www.aelfriceden.com", t:["街头","oversize"], c:"sport"},
+    {n:"Parthea", u:"https://www.azaleawang.com", t:["未来感"], c:"sport"},
+    {n:"Dominnico", u:"https://dominnico.com", t:["秀场"], c:"sport"},
+    {n:"Halara", u:"https://www.halara.com", t:["裙裤"], c:"sport"},
+
+    // Curve
+    {n:"Fashion Nova", u:"https://www.fashionnova.com", t:["大码辣妹"], c:"curve"},
+    {n:"BloomChic", u:"https://www.bloomchic.com", t:["大码","通勤"], c:"curve"},
+    {n:"LovelyWholesale", u:"https://lovelywholesale.com", t:["曲线","街景"], c:"curve"},
+    {n:"Bellizimos", u:"https://www.bellizimos.com", t:["紧身","开叉"], c:"curve"},
+    {n:"Forevershe", u:"https://www.forevershe.com", t:["修身","黑人"], c:"curve"},
+    {n:"Dresspies", u:"https://www.dresspies.com", t:["礼服"], c:"curve"},
+    {n:"Mourban", u:"https://www.mourban.com", t:["街拍"], c:"curve"},
+    {n:"Missinlook", u:"https://www.missinlook.com", t:["派对"], c:"curve"},
+    {n:"Knowfashionstyle", u:"https://www.knowfashionstyle.com", t:["印花"], c:"curve"},
+    {n:"Wearvip", u:"https://wearvip.com", t:["夜店"], c:"curve"},
+    {n:"Elevenurban", u:"https://elevenurban.com", t:["街头"], c:"curve"},
+    {n:"Queenfy", u:"https://www.queenfy.com", t:["曲线"], c:"curve"},
+    {n:"Outyfit", u:"https://outyfit.com", t:["基础"], c:"curve"},
+    {n:"Newlydress", u:"https://www.newlydress.com", t:["修身"], c:"curve"},
+    {n:"Pansygal", u:"https://www.pansygal.com", t:["休闲"], c:"curve"},
+    {n:"Adoryme", u:"https://adoryme.com", t:["贴身"], c:"curve"},
+    {n:"Curvedress", u:"https://curvedress.com", t:["大码"], c:"curve"},
+    {n:"99jean", u:"https://99jean.com", t:["紧身"], c:"curve"},
+    {n:"144mph", u:"https://www.144mph.com", t:["性感"], c:"curve"},
+    {n:"Empress J", u:"https://empressjboutique.com", t:["女王"], c:"curve"},
+    {n:"Rosyella", u:"https://www.rosyella.com", t:["曲线"], c:"curve"},
+    {n:"Ezcute", u:"https://ezcute.com", t:["派对"], c:"curve"},
+
+    // Fast
+    {n:"NewChic", u:"https://www.newchic.com", t:["中老年","宽松"], c:"fast"},
+    {n:"Zulily", u:"https://www.zulily.com", t:["家庭","折扣"], c:"fast"},
+    {n:"FairySeason", u:"https://www.fairyseason.com", t:["平价","宽松"], c:"fast"},
+    {n:"Lotd", u:"https://www.lotd.com", t:["快时尚"], c:"fast"},
+    {n:"Missguided", u:"https://www.missguided.com", t:["派对"], c:"fast"},
+    {n:"Linkshe", u:"https://www.linkshe.com", t:["节日","泳衣"], c:"fast"},
+    {n:"Chicme", u:"https://www.chicme.com", t:["甜辣","街拍"], c:"fast"},
+    {n:"Dresslily", u:"https://www.dresslily.com", t:["基础"], c:"fast"},
+    {n:"Rotita", u:"https://www.rotita.com", t:["度假","小麦色"], c:"fast"},
+    {n:"Liligal", u:"https://www.liligal.com", t:["基础"], c:"fast"},
+    {n:"Molyca", u:"https://www.molyca.com", t:["纯色"], c:"fast"},
+    {n:"Zaful", u:"https://www.zaful.com", t:["泳衣"], c:"fast"},
+    {n:"Jollychic", u:"https://www.jollychic.com", t:["中东","长袖"], c:"fast"},
+    {n:"Bootymust", u:"https://bootymust.com", t:["贴身"], c:"fast"},
+    {n:"Forplay Catalog", u:"https://forplaycatalog.com", t:["情趣"], c:"fast"},
+    {n:"Lingerie Diva", u:"https://lingeriediva.com", t:["内衣"], c:"fast"},
+    {n:"Dresshead", u:"https://dresshead.com", t:["通勤"], c:"fast"},
+    {n:"Suzhou Dress", u:"https://suzhoudress.com", t:["婚纱"], c:"fast"},
+    {n:"Oshoplive", u:"https://www.oshoplive.com", t:["快时尚"], c:"fast"},
+    {n:"Wanadress", u:"https://wanadress.com", t:["宴会"], c:"fast"},
+    {n:"Ericdress", u:"https://www.ericdress.com", t:["婚礼"], c:"fast"},
+    {n:"Polar Hearts", u:"https://www.polarhearts.com", t:["简约"], c:"fast"},
+    {n:"Red Coco Star", u:"https://www.redcocostar.com", t:["修身"], c:"fast"},
+    {n:"New Mina", u:"https://www.newmina.com", t:["基础"], c:"fast"},
+    {n:"Mrcovic", u:"https://www.mrcovic.com", t:["A字裙"], c:"fast"},
+    {n:"Follow Zap", u:"https://www.followzap.com", t:["快时尚"], c:"fast"},
+    {n:"Adora Pretty", u:"https://www.adorapretty.com", t:["少女"], c:"fast"},
+    {n:"Fabrus Online", u:"https://www.fabrusonline.com", t:["日常"], c:"fast"},
+    {n:"Belle Wholesale", u:"https://www.bellewholesale.com", t:["印花"], c:"fast"},
+    {n:"Ladifit", u:"https://www.ladifit.com", t:["修身"], c:"fast"},
+    {n:"Divas Ruby", u:"https://www.divasruby.com", t:["名媛"], c:"fast"},
+    {n:"Ninimour", u:"https://www.ninimour.com", t:["快时尚"], c:"fast"},
+    {n:"Pick My Boutique", u:"https://www.pickmyboutique.com", t:["精选"], c:"fast"},
+    {n:"Boutique Feel", u:"https://www.boutiquefeel.com", t:["紧身"], c:"fast"},
+    {n:"TB Dress", u:"https://www.tbdress.com", t:["礼服"], c:"fast"},
+    {n:"Cotton On", u:"https://www.cottonon.com", t:["平价"], c:"fast"},
+    {n:"Reserved", u:"https://www.reserved.com", t:["东欧"], c:"fast"},
+
+    // French
+    {n:"PrettyLittleThing", u:"https://www.prettylittlething.us", t:["欧美辣妹"], c:"french"},
+    {n:"Mango", u:"https://shop.mango.com", t:["简约"], c:"french"},
+    {n:"SSENSE", u:"https://www.ssense.com", t:["设计师"], c:"french"},
+    {n:"Virgo Boutique", u:"https://virgo-boutique.com", t:["优雅"], c:"french"},
+    {n:"Caroll", u:"https://www.caroll.com", t:["职场"], c:"french"},
+    {n:"Claudie Pierlot", u:"https://www.claudiepierlot.com", t:["轻奢"], c:"french"},
+    {n:"Balzac Paris", u:"https://www.balzac-paris.fr", t:["优雅"], c:"french"},
+    {n:"Marie Marot", u:"https://www.mariemarot.com", t:["白衬衫"], c:"french"},
+    {n:"Boutique Keva", u:"https://www.boutiquekeva.com/en/", t:["成熟"], c:"french"},
+    {n:"Intemporel", u:"https://www.intemporel.shop/", t:["极简"], c:"french"},
+    {n:"Prettywire", u:"https://www.prettywire.fr", t:["森系"], c:"french"},
+    {n:"Promod", u:"https://www.promod.com/en/", t:["平价"], c:"french"},
+    {n:"Petite Mendigote", u:"https://www.petitemendigote.com", t:["文艺"], c:"french"},
+    {n:"Hello Moon", u:"https://www.hellomoon-shop.com/fr", t:["简约"], c:"french"},
+    {n:"Minodusud", u:"https://www.minodusud.com/fr/pret-a-porter", t:["波西"], c:"french"},
+
+    // Euro
+    {n:"Shopaholics Dream", u:"https://shopaholicsdream.pl", t:["快时尚"], c:"euro"},
+    {n:"Andzela", u:"https://www.andzela.com", t:["平价"], c:"euro"},
+    {n:"Milutka", u:"https://www.milutka.com", t:["立陶宛"], c:"euro"},
+    {n:"Nasha Moda", u:"https://www.nashamoda.by", t:["白俄罗斯"], c:"euro"},
+    {n:"Blyzka", u:"https://blyzka.by", t:["通勤"], c:"euro"},
+    {n:"Knitteriet", u:"https://knitteriet.no", t:["挪威"], c:"euro"},
+    {n:"Pachamama", u:"https://www.pachamamaknitwear.com/Womens-Cardigans", t:["英国"], c:"euro"},
+    {n:"Rebellious", u:"https://www.rebelliousfashion.co.uk", t:["英国"], c:"euro"},
+    {n:"Qbunitastore", u:"https://www.qbunitastore.com.br", t:["巴西"], c:"euro"},
+    {n:"Magmac", u:"https://www.magmac.pl", t:["波兰"], c:"euro"},
+    {n:"So Italian", u:"https://www.soitalian.pl/pl", t:["意式"], c:"euro"},
+    {n:"La Butik", u:"https://www.labutik.sklep.pl", t:["波兰"], c:"euro"},
+    {n:"Elagia", u:"https://www.elagia.com", t:["西装"], c:"euro"},
+
+    // Gown
+    {n:"Meshki", u:"https://www.meshki.com.au", t:["修身"], c:"gown"},
+    {n:"Missord", u:"https://www.missord.com", t:["礼服"], c:"gown"},
+    {n:"Faeriesty", u:"https://faeriesty.com", t:["派对"], c:"gown"},
+    {n:"Zimmermann", u:"https://www.zimmermann.com", t:["高奢"], c:"gown"},
+    {n:"Dries Van Noten", u:"https://www.driesvannoten.com", t:["艺术"], c:"gown"},
+    {n:"Blumarine", u:"https://www.blumarine.com", t:["高定"], c:"gown"},
+    {n:"Anna Sui", u:"https://annasui.com", t:["复古"], c:"gown"},
+    {n:"Philosophy", u:"https://www.philosophyofficial.com", t:["名媛"], c:"gown"},
+    {n:"Poster Girl", u:"https://poster-girl.com", t:["漆皮"], c:"gown"},
+    {n:"Femkit", u:"https://femkit.de", t:["宫廷"], c:"gown"},
+    {n:"Somnia Romantica", u:"https://somniaromantica.com", t:["哥特"], c:"gown"},
+    {n:"Linennaive", u:"https://www.linennaive.com", t:["亚麻"], c:"gown"},
+    {n:"Jean Paul Gaultier", u:"https://fashion.jeanpaulgaultier.com", t:["解构"], c:"gown"},
+    {n:"Ever-Pretty", u:"https://www.ever-pretty.com", t:["平价"], c:"gown"},
+    {n:"Global Lover", u:"https://global-lover.com", t:["度假"], c:"gown"},
+
+    // Denim
+    {n:"AngelHeart", u:"https://angelheartboutique.com/", t:["西部"], c:"denim"},
+    {n:"Urban Outfitters", u:"https://www.urbanoutfitters.com", t:["工装"], c:"denim"},
+    {n:"Ronner Design", u:"https://ronnerdesign.com", t:["骑马"], c:"denim"},
+    {n:"Monster Valley", u:"https://www.monstervalley.com", t:["户外"], c:"denim"},
+
+    // Linen
+    {n:"Airily", u:"https://airily.eu/en/", t:["欧洲"], c:"linen"},
+    {n:"Soolinen", u:"https://soolinen.com", t:["文艺"], c:"linen"},
+    {n:"Fantasy Linen", u:"https://www.fantasylinen.com", t:["手工"], c:"linen"},
+    {n:"VeryBuy", u:"https://m.verybuy.cc", t:["台系"], c:"linen"},
+    {n:"Big Save", u:"https://www.bigsave.com.tw", t:["家居"], c:"linen"},
+    {n:"Minne", u:"https://minne.com", t:["手作"], c:"linen"},
+    {n:"Mattecoco", u:"https://www.mattecoco.com", t:["小麦色"], c:"linen"},
+    {n:"Hippie Chic", u:"https://hippiechicshop.com", t:["波西"], c:"linen"}
+];
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Indie Nav Cloud</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        /* Animations */
+        @keyframes move1 { 0% { transform: translate(0, 0); } 100% { transform: translate(20px, 20px); } }
+        @keyframes move2 { 0% { transform: translate(0, 0); } 100% { transform: translate(-20px, -20px); } }
+        @keyframes move3 { 0% { transform: translate(0, 0); } 100% { transform: translate(-15px, 15px); } }
+        
+        .animate-orb1 { animation: move1 20s infinite alternate ease-in-out; }
+        .animate-orb2 { animation: move2 25s infinite alternate ease-in-out; }
+        .animate-orb3 { animation: move3 30s infinite alternate ease-in-out; }
+
+        /* Stars Background for specific theme */
+        .theme-stars-bg {
+            background-image: 
+                radial-gradient(white, rgba(255,255,255,.2) 2px, transparent 3px),
+                radial-gradient(white, rgba(255,255,255,.15) 1px, transparent 2px),
+                radial-gradient(white, rgba(255,255,255,.1) 2px, transparent 3px);
+            background-size: 550px 550px, 350px 350px, 250px 250px;
+            background-position: 0 0, 40px 60px, 130px 270px;
+        }
+        
+        /* Lines Background for specific theme */
+        .theme-lines-bg {
+            background-image: linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px);
+            background-size: 40px 40px;
+        }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body>
+    <div id="root"></div>
+<script type="module" src="/index.tsx"></script>
+</body>
+</html>
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './App';
+
+const rootElement = document.getElementById('root');
+if (!rootElement) {
+  throw new Error("Could not find root element to mount to");
+}
+
+const root = ReactDOM.createRoot(rootElement);
+root.render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
+{
+  "name": "Indie Nav Cloud",
+  "description": "A cyberpunk-styled navigation dashboard for fashion websites with categorization, theming, and local personalization features.",
+  "requestFramePermissions": []
+}
+{
+  "name": "indie-nav-cloud",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0"
+  }
+}
+
+<div align="center">
+<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+</div>
+
+# Run and deploy your AI Studio app
+
+This contains everything you need to run your app locally.
+
+View your app in AI Studio: https://ai.studio/apps/drive/1jcdzbMHNZRt4RtrLa5VsNIlxBPF7Qe9L
+
+## Run Locally
+
+**Prerequisites:**  Node.js
+
+
+1. Install dependencies:
+   `npm install`
+2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+3. Run the app:
+   `npm run dev`
+
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false,
+    "module": "ESNext",
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "skipLibCheck": true,
+    "types": [
+      "node"
+    ],
+    "moduleResolution": "bundler",
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "allowJs": true,
+    "jsx": "react-jsx",
+    "paths": {
+      "@/*": [
+        "./*"
+      ]
+    },
+    "allowImportingTsExtensions": true,
+    "noEmit": true
+  }
+}
+export interface Site {
+  n: string; // name
+  u: string; // url
+  t: string[]; // tags
+  c: string; // category
+  rating?: number;
+  pinned?: boolean;
+}
+
+export type BackgroundMode = 'particles' | 'grid' | 'waves' | 'stars' | 'blobs';
+
+export interface Theme {
+  name: string;
+  bgMode: BackgroundMode;
+  vars: React.CSSProperties;
+}
+
+export type CategoryFilter = 
+  | 'all' 
+  | '5star' 
+  | 'custom' 
+  | 'shein' 
+  | 'young' 
+  | 'elegant' 
+  | 'sport' 
+  | 'french' 
+  | 'gown' 
+  | 'denim' 
+  | 'linen' 
+  | 'curve' 
+  | 'fast' 
+  | 'euro';
+
+export interface ContextMenuState {
+  visible: boolean;
+  x: number;
+  y: number;
+  siteUrl: string | null;
+}
+import path from 'path';
+import { defineConfig, loadEnv } from 'vite';
+import react from '@vitejs/plugin-react';
+
+export default defineConfig(({ mode }) => {
+    const env = loadEnv(mode, '.', '');
+    return {
+      server: {
+        port: 3000,
+        host: '0.0.0.0',
+      },
+      plugins: [react()],
+      define: {
+        'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
+        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
+      },
+      resolve: {
+        alias: {
+          '@': path.resolve(__dirname, '.'),
+        }
+      }
+    };
+});

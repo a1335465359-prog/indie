@@ -3,634 +3,548 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Indie Nav - V9.2 Fixed</title>
+<title>Indie Nav Cloud</title>
+<!-- 引入 LeanCloud SDK -->
 <script src="https://cdn.jsdelivr.net/npm/leancloud-storage@4.15.0/dist/av-min.js"></script>
+<!-- 引入 Tailwind CSS (为了更好的样式支持，模拟 React 版的样式) -->
+<script src="https://cdn.tailwindcss.com"></script>
 <style>
     :root {
-        /* --- 核心变量 --- */
-        --bg-color: #050714;
         --text-main: #ffffff;
-        --text-sub: rgba(255, 255, 255, 0.65);
-        --glass-bg: rgba(30, 30, 35, 0.3);
+        --text-sub: rgba(255, 255, 255, 0.7);
+        --glass-bg: rgba(20, 20, 25, 0.4);
         --glass-border: rgba(255, 255, 255, 0.1);
+        --card-bg: rgba(255, 255, 255, 0.05);
         --card-hover: rgba(255, 255, 255, 0.15);
-        --sidebar-bg: rgba(20, 20, 25, 0.6);
-        --accent: #00d2ff;
-        /* 光球变量 */
-        --orb1: #00ff9d; --orb2: #bd00ff; --orb3: #00b8ff;
-        --blend-mode: screen;
-        --orb-opacity: 0.4;
+        --accent: #0a84ff;
+        --radius: 16px;
+        --font: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
     }
 
-    /* --- 🎨 主题定义 --- */
-    
-    /* 1. 绯红 */
-    body.theme-red {
-        --bg-color: #1a0505; --accent: #ff4d4d;
-        --orb1: #ff0000; --orb2: #ff8800; --orb3: #ff0055;
-        --sidebar-bg: rgba(40, 10, 10, 0.6);
-    }
-    /* 2. 幽绿 */
-    body.theme-green {
-        --bg-color: #021202; --accent: #00ff88;
-        --orb1: #00ff00; --orb2: #adff2f; --orb3: #008000;
-        --sidebar-bg: rgba(10, 30, 15, 0.6);
-    }
-    /* 3. 纯白 (反色模式) */
-    body.theme-white {
-        --bg-color: #f5f5f7; 
-        --text-main: #1d1d1f; --text-sub: #86868b;
-        --glass-bg: rgba(255, 255, 255, 0.6);
-        --glass-border: rgba(0, 0, 0, 0.1);
-        --card-hover: #ffffff;
-        --sidebar-bg: rgba(240, 240, 245, 0.7);
-        --accent: #007aff;
-        --orb1: #007aff; --orb2: #5ac8fa; --orb3: #5856d6;
-        --blend-mode: multiply;
-        --orb-opacity: 0.15;
-    }
-    /* 4. 星空 (纯黑) */
-    body.theme-stars { --bg-color: #000000; --orb-opacity: 0; }
-    body.theme-stars::before {
-        content: ""; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-        background-image: 
-            radial-gradient(white, rgba(255,255,255,.2) 2px, transparent 3px),
-            radial-gradient(white, rgba(255,255,255,.15) 1px, transparent 2px),
-            radial-gradient(white, rgba(255,255,255,.1) 2px, transparent 3px);
-        background-size: 550px 550px, 350px 350px, 250px 250px;
-        background-position: 0 0, 40px 60px, 130px 270px;
-        z-index: -1; opacity: 0.8; pointer-events: none;
-    }
-    /* 5. 线条 */
-    body.theme-lines {
-        --bg-color: #0a0a0a; --orb-opacity: 0;
-        background-image: linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px);
-        background-size: 40px 40px;
-    }
-
-    /* --- 基础样式 --- */
-    * { margin: 0; padding: 0; box-sizing: border-box; outline: none; -webkit-tap-highlight-color: transparent; user-select: none; }
-    
     body {
-        background-color: var(--bg-color);
-        font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
-        height: 100vh; overflow: hidden; position: relative;
+        background-color: #000;
+        font-family: var(--font);
+        height: 100vh;
+        overflow: hidden;
         color: var(--text-main);
-        transition: background-color 0.6s ease, color 0.3s ease;
+        margin: 0;
     }
 
-    /* --- 极光层 --- */
-    .aurora-layer {
-        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-        z-index: 0; pointer-events: none; overflow: hidden;
-        background: transparent; /* 确保透明，否则挡住背景色 */
-        transform: translate3d(0,0,0);
+    /* Canvas 背景 */
+    #canvas-bg {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0;
     }
 
-    .orb {
-        position: absolute; border-radius: 50%;
-        filter: blur(60px); opacity: var(--orb-opacity);
-        mix-blend-mode: var(--blend-mode);
-        transition: background 1s ease, opacity 0.5s ease;
-        will-change: transform;
+    /* 布局容器 */
+    .app-container {
+        position: relative; z-index: 10;
+        display: flex; width: 100%; height: 100%;
+        padding: 16px; gap: 16px;
+        max-width: 1920px; margin: 0 auto;
     }
 
-    .orb-1 { width: 60vw; height: 60vw; background: radial-gradient(circle, var(--orb1) 0%, transparent 70%); top: -15%; left: -15%; animation: move1 20s infinite alternate ease-in-out; }
-    .orb-2 { width: 50vw; height: 50vw; background: radial-gradient(circle, var(--orb2) 0%, transparent 70%); bottom: -15%; right: -15%; animation: move2 25s infinite alternate ease-in-out; }
-    .orb-3 { width: 40vw; height: 40vw; background: radial-gradient(circle, var(--orb3) 0%, transparent 70%); top: 30%; left: 30%; animation: move3 30s infinite alternate ease-in-out; }
-
-    @keyframes move1 { 0% { transform: translate(0, 0); } 100% { transform: translate(20px, 20px); } }
-    @keyframes move2 { 0% { transform: translate(0, 0); } 100% { transform: translate(-20px, -20px); } }
-    @keyframes move3 { 0% { transform: translate(0, 0); } 100% { transform: translate(-15px, 15px); } }
-
-    /* 门禁 */
-    .auth-overlay {
-        position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999;
-        background: rgba(5, 7, 20, 0.98);
-        display: flex; flex-direction: column; align-items: center; justify-content: center;
-        transition: opacity 0.5s ease;
-    }
-    .auth-box { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); padding: 40px; border-radius: 24px; text-align: center; width: 320px; }
-    .auth-input { width: 100%; padding: 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.4); color: #fff; font-size: 16px; text-align: center; margin: 20px 0; }
-    .auth-btn { width: 100%; padding: 14px; border-radius: 12px; border: none; background: var(--accent); color: #000; font-weight: 800; cursor: pointer; }
-
-    /* 布局 */
-    .os-window { display: none; position: relative; z-index: 10; width: 100%; height: 100%; padding: 16px; gap: 16px; max-width: 1920px; margin: 0 auto; }
-    
+    /* 侧边栏 */
     .sidebar {
-        width: 220px; background: var(--sidebar-bg);
-        border: 1px solid var(--glass-border); border-radius: 16px;
-        display: flex; flex-direction: column; padding: 20px 10px; flex-shrink: 0;
-        backdrop-filter: blur(20px); transition: background 0.5s;
+        width: 240px;
+        background: var(--glass-bg);
+        backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px);
+        border: 1px solid var(--glass-border); border-radius: var(--radius);
+        display: flex; flex-direction: column; padding: 20px 12px; flex-shrink: 0;
+        overflow-y: auto;
     }
-    .logo {
-        font-size: 18px; font-weight: 800; margin-bottom: 20px; padding-left: 12px;
-        background: linear-gradient(to right, var(--text-main), var(--accent)); 
-        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-    }
-    .nav-group-label { font-size: 12px; font-weight: 600; color: var(--text-sub); margin: 16px 0 6px 14px; }
-    .nav-item {
-        padding: 10px 14px; margin-bottom: 2px; border-radius: 8px; font-size: 14px; color: var(--text-sub);
-        cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: space-between;
-    }
-    .nav-item:hover { background: var(--glass-border); color: var(--text-main); }
-    .nav-item.active { background: rgba(0, 210, 255, 0.15); color: var(--text-main); font-weight: 600; border-left: 3px solid var(--accent); }
-    .nav-item[data-cat="shein"] { color: #ffe066; }
-    body.theme-white .nav-item[data-cat="shein"] { color: #d4a017; }
-
-    .main-view {
-        flex: 1; background: var(--glass-bg); backdrop-filter: blur(30px);
-        border: 1px solid var(--glass-border); border-radius: 16px;
-        display: flex; flex-direction: column; overflow: hidden; position: relative;
-        transition: background 0.5s;
-    }
-    .toolbar {
-        padding: 14px 24px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--glass-border);
-    }
-    .search-input {
-        width: 280px; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--glass-border); 
-        background: rgba(128,128,128,0.1); font-size: 14px; color: var(--text-main);
-    }
-    .search-input:focus { background: rgba(128,128,128,0.2); border-color: var(--accent); }
+    .sidebar::-webkit-scrollbar { width: 0; }
     
-    /* 主题按钮 */
-    .theme-btn {
-        width: 32px; height: 32px; border-radius: 50%; background: var(--glass-border); color: var(--text-main);
-        display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; font-size: 16px;
+    .logo {
+        font-size: 20px; font-weight: 800; margin-bottom: 24px; padding-left: 12px;
+        background: linear-gradient(135deg, #fff, #aaa); -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     }
-    .theme-btn:hover { background: var(--accent); color: #000; }
 
-    .scroll-content { flex: 1; overflow-y: auto; padding: 0 24px 40px 24px; }
-    .scroll-content::-webkit-scrollbar { width: 6px; }
-    .scroll-content::-webkit-scrollbar-thumb { background: var(--glass-border); border-radius: 4px; }
+    .nav-title { font-size: 11px; color: var(--text-sub); margin: 16px 0 8px 12px; font-weight: 600; opacity: 0.6; text-transform: uppercase; }
+    
+    .nav-item {
+        padding: 10px 12px; margin-bottom: 4px; border-radius: 8px;
+        font-size: 14px; color: var(--text-sub); cursor: pointer; transition: 0.2s;
+        display: flex; justify-content: space-between; align-items: center;
+    }
+    .nav-item:hover { background: rgba(255,255,255,0.1); color: #fff; }
+    .nav-item.active { background: rgba(10, 132, 255, 0.15); color: #fff; font-weight: 600; border-left: 3px solid var(--accent); }
+    .nav-item[data-id="shein"] { color: #ffd60a; }
 
-    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+    /* 主视图 */
+    .main-content {
+        flex: 1;
+        background: var(--glass-bg);
+        backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px);
+        border: 1px solid var(--glass-border); border-radius: var(--radius);
+        display: flex; flex-direction: column; overflow: hidden; position: relative;
+    }
 
+    .toolbar {
+        padding: 16px 24px; border-bottom: 1px solid var(--glass-border);
+        display: flex; align-items: center; justify-content: space-between;
+    }
+    .search-box {
+        width: 300px; padding: 10px 16px; border-radius: 10px;
+        background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border);
+        color: #fff; font-size: 14px; transition: 0.3s; outline: none;
+    }
+    .search-box:focus { border-color: var(--accent); background: rgba(0,0,0,0.4); }
+    
+    .user-status { font-size: 12px; padding: 4px 10px; border-radius: 20px; background: rgba(255,255,255,0.1); color: #aaa; }
+    .user-status.admin { color: var(--accent); background: rgba(10, 132, 255, 0.15); }
+
+    .scroll-area { flex: 1; overflow-y: auto; padding: 24px; }
+    .scroll-area::-webkit-scrollbar { width: 6px; }
+    .scroll-area::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+    
+    .grid {
+        display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px;
+    }
+
+    /* 卡片 */
     .card {
-        background: var(--glass-surface); border: 1px solid var(--glass-border); border-radius: 12px; height: 110px; padding: 14px;
-        display: flex; flex-direction: column; justify-content: space-between; text-decoration: none; position: relative;
-        transition: transform 0.1s, background 0.2s, border-color 0.2s;
+        background: var(--card-bg); border: 1px solid var(--glass-border);
+        border-radius: 14px; height: 120px; padding: 16px;
+        display: flex; flex-direction: column; justify-content: space-between;
+        text-decoration: none; position: relative; transition: all 0.2s ease; cursor: pointer;
     }
-    .card:hover { transform: translateY(-2px); background: var(--card-hover); border-color: var(--accent); }
-    .card.shein-card { border-color: rgba(255,215,0,0.2); }
-    .card.shein-card .site-title { color: #ffe066; }
-    body.theme-white .card.shein-card .site-title { color: #d4a017; }
-
-    .site-title { font-size: 15px; font-weight: 600; color: var(--text-main); margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .site-url { font-size: 11px; color: var(--text-sub); font-family: monospace; }
-    .card-footer { display: flex; justify-content: space-between; align-items: center; }
-    .tags-row { display: flex; gap: 4px; flex-wrap: wrap; flex: 1; overflow: hidden; height: 20px; }
-    .tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; background: rgba(128,128,128,0.2); color: var(--text-sub); white-space: nowrap; }
-    .tag.custom { color: var(--accent); background: rgba(0, 210, 255, 0.1); }
-    .add-tag-btn { 
-        width: 20px; height: 20px; border-radius: 4px; background: var(--glass-border); color: var(--text-main); border: none; 
-        cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; margin-left: 5px;
+    .card:hover {
+        transform: translateY(-4px); background: var(--card-hover); border-color: rgba(255,255,255,0.3);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.3);
     }
-    .add-tag-btn:hover { background: var(--accent); color: #000; }
-    .stars { color: #ffd700; font-size: 11px; letter-spacing: 1px; }
+    .card.pinned { border: 1px solid var(--accent); background: rgba(10, 132, 255, 0.08); }
+    .pin-icon { position: absolute; top: 10px; right: 10px; color: var(--accent); font-size: 14px; transform: rotate(45deg); }
 
-    .fab-add {
+    .site-info h3 { font-size: 15px; color: #fff; margin: 0 0 4px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 15px; font-weight: 600; }
+    .site-info p { font-size: 11px; color: rgba(255,255,255,0.4); font-family: monospace; margin: 0; }
+    
+    .card-bottom { display: flex; justify-content: space-between; align-items: center; }
+    .tags { display: flex; gap: 4px; overflow: hidden; height: 18px; }
+    .tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.1); color: #ccc; white-space: nowrap; }
+    .stars { color: #ffd60a; font-size: 11px; letter-spacing: 1px; }
+
+    /* 悬浮按钮 */
+    .fab {
         position: absolute; bottom: 30px; right: 30px;
         width: 50px; height: 50px; border-radius: 50%;
-        background: var(--accent); color: #000; font-size: 30px;
+        background: var(--accent); color: #fff; font-size: 28px;
         display: flex; align-items: center; justify-content: center;
-        box-shadow: 0 0 20px rgba(0,0,0,0.2); cursor: pointer; z-index: 50;
+        box-shadow: 0 5px 20px rgba(10,132,255,0.4); cursor: pointer;
+        transition: 0.3s;
     }
-    .fab-add:hover { transform: scale(1.1); background: #fff; }
+    .fab:hover { transform: scale(1.1) rotate(90deg); background: #fff; color: var(--accent); }
 
-    .modal-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:200; display:none; align-items:center; justify-content:center; }
-    .modal { background: #222; padding: 24px; border-radius: 16px; width: 380px; border: 1px solid rgba(255,255,255,0.2); color: #fff; }
-    .modal input, .modal select { width: 100%; padding: 12px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.1); color: #fff; border-radius: 8px; margin-bottom: 12px; }
-    .modal-btn { width: 100%; padding: 12px; background: var(--accent); border: none; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+    /* 门禁 */
+    .lock-screen {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 999;
+        background: rgba(5, 5, 10, 0.95); backdrop-filter: blur(20px);
+        display: flex; align-items: center; justify-content: center; flex-direction: column;
+        transition: opacity 0.5s;
+    }
+    .lock-box { width: 320px; text-align: center; padding: 40px; border: 1px solid rgba(255,255,255,0.1); border-radius: 24px; background: rgba(255,255,255,0.05); }
+    .lock-input { 
+        width: 100%; padding: 14px; margin: 20px 0; text-align: center; font-size: 20px; letter-spacing: 4px;
+        background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.2); border-radius: 12px; color: #fff; outline: none; transition: 0.3s;
+    }
+    .lock-input:focus { border-color: var(--accent); background: rgba(0,0,0,0.5); }
+    
+    /* 弹窗 */
+    .modal-mask {
+        position: fixed; top:0; left:0; width:100%; height:100%; z-index:200;
+        background: rgba(0,0,0,0.7); backdrop-filter: blur(5px);
+        display: none; align-items: center; justify-content: center;
+    }
+    .modal { background: #1c1c1e; width: 400px; padding: 24px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.1); }
+    .modal h3 { color: #fff; margin-bottom: 20px; font-size: 18px; font-weight: bold; }
+    .modal input, .modal select {
+        width: 100%; padding: 12px; margin-bottom: 12px; border-radius: 8px;
+        background: #2c2c2e; border: 1px solid #3a3a3c; color: #fff; font-size: 14px; outline: none;
+    }
+    .modal select option { background-color: #1c1c1e; color: #fff; }
+    .btn-row { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; }
+    .btn { padding: 8px 20px; border-radius: 8px; border: none; cursor: pointer; font-weight: 600; font-size: 13px; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-sub { background: rgba(255,255,255,0.1); color: #aaa; }
 
-    .ctx-menu { position: fixed; background: #222; border: 1px solid #444; border-radius: 8px; padding: 5px; display: none; z-index: 100; box-shadow: 0 5px 15px rgba(0,0,0,0.5); width: 140px; }
-    .ctx-item { padding: 8px; font-size: 13px; color: #ddd; cursor: pointer; border-radius: 4px; }
-    .ctx-item:hover { background: #333; color: #fff; }
-    .ctx-divider { height: 1px; background: #444; margin: 4px 0; }
-    .ctx-delete { color: #ff453a; display: none; }
-    .ctx-manage-tags { display: none; }
-    .star-row { display: flex; justify-content: center; gap: 5px; padding: 5px; }
-    .star-btn { font-size: 18px; color: #555; cursor: pointer; }
-    .star-btn:hover, .star-btn.active { color: #ffd700; }
-
+    /* 右键菜单 */
+    .ctx-menu {
+        position: fixed; width: 150px; background: #252525; border: 1px solid #333;
+        border-radius: 10px; padding: 6px; display: none; z-index: 500;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+    }
+    .ctx-item { padding: 8px; font-size: 13px; color: #eee; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 8px;}
+    .ctx-item:hover { background: var(--accent); color: #fff; }
+    .ctx-line { height: 1px; background: #333; margin: 4px 0; }
+    .ctx-admin { display: none; }
+    
     @media (max-width: 900px) {
-        .os-window { flex-direction: column; padding: 0; }
-        .sidebar { width: 100%; height: auto; flex-direction: row; overflow-x: auto; padding: 12px; background: var(--bg-color); }
-        .nav-item { flex-shrink: 0; white-space: nowrap; margin-right: 5px; }
-        .logo, .nav-group-label { display: none; }
+        .app-container { flex-direction: column; padding: 0; }
+        .sidebar { width: 100%; height: auto; flex-direction: row; overflow-x: auto; border-radius: 0; padding: 15px; background: #000; }
+        .nav-title, .logo { display: none; }
+        .nav-item { margin: 0; white-space: nowrap; padding: 8px 12px; }
+        .main-content { border-radius: 0; border: none; }
+        .search-box { width: 100%; }
         .grid { grid-template-columns: 1fr; }
+        .fab { bottom: 20px; right: 20px; width: 45px; height: 45px; font-size: 24px; }
     }
 </style>
 </head>
 <body>
 
-    <div class="auth-overlay" id="authScreen">
-        <div class="auth-box">
-            <h2 style="color:#fff; margin-bottom:10px;">Indie Nav</h2>
-            <p style="color:#aaa; font-size:13px; margin-bottom:20px;">共创社区 · 内部访问</p>
-            <input type="password" class="auth-input" id="accessKey" placeholder="输入访问密钥">
-            <button class="auth-btn" onclick="tryLogin()">进入</button>
+<!-- 1. Canvas 背景 -->
+<canvas id="canvas-bg"></canvas>
+
+<!-- 2. 门禁 -->
+<div class="lock-screen" id="lockScreen">
+    <div class="lock-box">
+        <div style="font-size: 40px; margin-bottom: 20px;">🔒</div>
+        <h2 style="color: #fff; font-weight: 800; margin-bottom: 5px; font-size: 24px;">Indie Nav</h2>
+        <p style="color:#888; font-size: 12px; margin-bottom: 20px;">Protected Cloud Access</p>
+        <input type="password" class="lock-input" id="pwdInput" placeholder="Enter Password" oninput="autoLogin(this)">
+    </div>
+</div>
+
+<!-- 3. 主程序 -->
+<div class="app-container">
+    <aside class="sidebar">
+        <div class="logo">Indie Nav Cloud</div>
+        
+        <div class="nav-title">Library</div>
+        <div class="nav-item active" onclick="switchTab('all', this)">全部网站</div>
+        <div class="nav-item" onclick="switchTab('5star', this)">五星精选</div>
+        <div class="nav-item" onclick="switchTab('custom', this)">网友共创</div>
+
+        <div class="nav-title">Special</div>
+        <div class="nav-item" data-id="shein" onclick="switchTab('shein', this)">SHEIN 全球站</div>
+
+        <div class="nav-title">Styles</div>
+        <div class="nav-item" onclick="switchTab('young', this)">年轻 / 辣妹</div>
+        <div class="nav-item" onclick="switchTab('elegant', this)">轻熟 / 通勤</div>
+        <div class="nav-item" onclick="switchTab('sport', this)">运动 / 潮牌</div>
+        <div class="nav-item" onclick="switchTab('french', this)">法式 / 极简</div>
+        <div class="nav-item" onclick="switchTab('gown', this)">礼服 / 派对</div>
+        <div class="nav-item" onclick="switchTab('denim', this)">牛仔 / 复古</div>
+        <div class="nav-item" onclick="switchTab('linen', this)">棉麻 / 文青</div>
+
+        <div class="nav-title">Markets</div>
+        <div class="nav-item" onclick="switchTab('curve', this)">大码 / 曲线</div>
+        <div class="nav-item" onclick="switchTab('fast', this)">全球快时尚</div>
+        <div class="nav-item" onclick="switchTab('euro', this)">欧洲 / 小众</div>
+    </aside>
+
+    <main class="main-content">
+        <div class="toolbar">
+            <input type="text" class="search-box" placeholder="Search..." oninput="handleSearch(this.value)">
+            <div class="user-status" id="userBadge">Visitor</div>
+        </div>
+        <div class="scroll-area">
+            <div class="grid" id="grid"></div>
+        </div>
+        <div class="fab" onclick="openModal()">+</div>
+    </main>
+</div>
+
+<!-- 添加弹窗 -->
+<div class="modal-mask" id="addModal">
+    <div class="modal">
+        <h3>添加新网站</h3>
+        <input id="inName" placeholder="网站名称">
+        <input id="inUrl" placeholder="网址 (https://...)" onblur="autoFillName()">
+        <input id="inTags" placeholder="标签 (逗号分隔)">
+        <select id="inCat">
+            <option value="custom">默认分类 (Custom)</option>
+            <option value="young">年轻/辣妹</option>
+            <option value="elegant">轻熟/通勤</option>
+            <option value="shein">SHEIN</option>
+            <option value="sport">运动/潮牌</option>
+            <option value="french">法式/极简</option>
+            <option value="gown">礼服/派对</option>
+            <option value="denim">牛仔/复古</option>
+            <option value="linen">棉麻/文青</option>
+            <option value="curve">大码/曲线</option>
+            <option value="fast">全球快时尚</option>
+            <option value="euro">欧洲/小众</option>
+        </select>
+        <div class="btn-row">
+            <button class="btn btn-sub" onclick="closeModal()">取消</button>
+            <button class="btn btn-primary" onclick="saveSite()">保存</button>
         </div>
     </div>
+</div>
 
-    <div class="aurora-layer">
-        <div class="orb orb-1"></div>
-        <div class="orb orb-2"></div>
-        <div class="orb orb-3"></div>
-    </div>
-
-    <div class="os-window" id="mainWindow">
-        <nav class="sidebar">
-            <div class="logo">Indie Nav Cloud</div>
-            
-            <div class="nav-group-label">库</div>
-            <div class="nav-item active" onclick="render('all', this)">全部网站</div>
-            <div class="nav-item" onclick="render('5star', this)">五星精选</div>
-            <div class="nav-item" onclick="render('custom', this)">网友共创</div>
-
-            <div class="nav-group-label">SHEIN</div>
-            <div class="nav-item" onclick="render('shein', this)" data-cat="shein">SHEIN 全球站</div>
-
-            <div class="nav-group-label">风格</div>
-            <div class="nav-item" onclick="render('young', this)">年轻 / 辣妹</div>
-            <div class="nav-item" onclick="render('elegant', this)">轻熟 / 通勤</div>
-            <div class="nav-item" onclick="render('sport', this)">运动 / 潮牌</div>
-            <div class="nav-item" onclick="render('french', this)">法式 / 极简</div>
-            <div class="nav-item" onclick="render('gown', this)">礼服 / 派对</div>
-            <div class="nav-item" onclick="render('denim', this)">牛仔 / 复古</div>
-            <div class="nav-item" onclick="render('linen', this)">棉麻 / 文青</div>
-
-            <div class="nav-group-label">市场</div>
-            <div class="nav-item" onclick="render('curve', this)">大码 / 曲线</div>
-            <div class="nav-item" onclick="render('fast', this)">全球快时尚</div>
-            <div class="nav-item" onclick="render('euro', this)">欧洲 / 小众</div>
-        </nav>
-
-        <main class="main-view">
-            <div class="toolbar">
-                <input type="text" class="search-input" placeholder="搜索..." oninput="handleSearch(this.value)">
-                <div class="theme-btn" onclick="toggleTheme()" title="切换主题">🎨</div>
-            </div>
-            <div class="scroll-content">
-                <div class="grid" id="grid"></div>
-            </div>
-            <div class="fab-add" onclick="openAddModal()">+</div>
-        </main>
-    </div>
-
-    <div class="modal-overlay" id="addModal">
-        <div class="modal">
-            <h3 style="margin-bottom:15px;">添加新网站</h3>
-            <input id="newUrl" placeholder="网址 (https://...)" onblur="autoFillName()">
-            <input id="newName" placeholder="网站名称">
-            <input id="newTags" placeholder="标签 (逗号分隔)">
-            <select id="newCat">
-                <option value="custom">-- 默认分类 (Custom) --</option>
-                <option value="young">年轻 / 辣妹</option>
-                <option value="elegant">轻熟 / 通勤</option>
-                <option value="sport">运动 / 潮牌</option>
-                <option value="french">法式 / 极简</option>
-                <option value="gown">礼服 / 派对</option>
-                <option value="denim">牛仔 / 复古</option>
-                <option value="linen">棉麻 / 文青</option>
-                <option value="curve">大码 / 曲线</option>
-                <option value="fast">全球快时尚</option>
-                <option value="euro">欧洲 / 小众</option>
-                <option value="shein">SHEIN</option>
-            </select>
-            <button class="modal-btn" onclick="submitNewSite()">保存并同步</button>
-            <button class="modal-btn" style="background:rgba(255,255,255,0.1); margin-top:8px;" onclick="document.getElementById('addModal').style.display='none'">取消</button>
-        </div>
-    </div>
-
-    <div id="ctxMenu" class="ctx-menu">
-        <div id="starInput" class="star-row"></div>
-        <div class="ctx-divider"></div>
-        <div class="ctx-item" onclick="renameSite()">✏️ 重命名</div>
-        <div class="ctx-item ctx-manage-tags" id="btnTags" onclick="manageTags()">🏷️ 管理标签</div>
-        <div class="ctx-item ctx-delete" id="btnDelete" onclick="deleteSite()">🗑 删除网站</div>
-    </div>
+<!-- 右键菜单 -->
+<div id="ctxMenu" class="ctx-menu">
+    <div class="ctx-item" onclick="rateSite(5)">🌟 设为 5 星</div>
+    <div class="ctx-item" onclick="rateSite(1)">💩 设为 1 星</div>
+    <div class="ctx-line"></div>
+    <div class="ctx-item" onclick="renameSite()">✏️ 重命名</div>
+    <!-- 管理员功能 -->
+    <div class="ctx-item ctx-admin" id="pinBtn" onclick="togglePin()">📌 置顶/取消</div>
+    <div class="ctx-item ctx-admin" onclick="manageTags()">🏷️ 编辑标签</div>
+    <div class="ctx-item ctx-admin" style="color:#ff453a" onclick="deleteSite()">🗑 删除</div>
+</div>
 
 <script>
-    const LC_APP_ID = "MTbnlF1EcKYgifi6nWsjLK3v-MdYXbMMI";
-    const LC_APP_KEY = "iPMUnJbKplRokq3h4SUPdpMT"; 
-    const LC_SERVER_URL = "https://mtbnlf1e.api.lncldglobal.com";
-
-    let DB_ID = ""; 
-    let localData = { sites: [] }; 
-    let currentFilter = 'all';
-    let targetUrl = null; 
-    let isAdmin = false; 
-
-    // --- 主题系统 (Chatgpt 修复版) ---
-    const themes = ['', 'theme-red', 'theme-green', 'theme-white', 'theme-stars', 'theme-lines'];
-    let themeIdx = 0;
-
-    function toggleTheme() {
-        // 下一主题档
-        themeIdx = (themeIdx + 1) % themes.length;
-
-        // 移除已有 theme-* class，保留其他 class
-        document.body.className = (
-          document.body.className
-            .split(/\s+/)
-            .filter(c => !c.startsWith('theme-'))
-            .join(' ')
-        );
-
-        // 添加新的主题 class
-        const nextClass = themes[themeIdx];
-        if (nextClass) {
-            document.body.classList.add(nextClass);
+    // --- 1. Canvas 绚丽流体背景 ---
+    const canvas = document.getElementById('canvas-bg');
+    const ctx = canvas.getContext('2d');
+    let w, h, particles = [];
+    
+    function initCanvas() {
+        w = canvas.width = window.innerWidth;
+        h = canvas.height = window.innerHeight;
+        particles = [];
+        // 创建彩色光团
+        for(let i=0; i<6; i++) {
+            particles.push({
+                x: Math.random()*w, y: Math.random()*h,
+                vx: (Math.random()-0.5)*0.5, vy: (Math.random()-0.5)*0.5,
+                r: Math.random()*300 + 200,
+                color: `hsla(${Math.random()*60 + 180}, 70%, 60%, 0.25)` // 蓝紫色系
+            });
         }
-
-        // Debug：打印当前主题名和背景色
-        console.log('当前主题：', nextClass || '(默认)');
-        console.log('当前背景色：', getComputedStyle(document.body).backgroundColor);
     }
 
-    // --- 登录 ---
-    function tryLogin() {
-        const pwd = document.getElementById('accessKey').value;
-        if(pwd === "666") {
+    function animate() {
+        ctx.fillStyle = '#050714';
+        ctx.fillRect(0, 0, w, h);
+        
+        particles.forEach(p => {
+            p.x += p.vx; p.y += p.vy;
+            if(p.x < -p.r) p.x = w+p.r; if(p.x > w+p.r) p.x = -p.r;
+            if(p.y < -p.r) p.y = h+p.r; if(p.y > h+p.r) p.y = -p.r;
+            
+            const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r);
+            g.addColorStop(0, p.color);
+            g.addColorStop(1, 'transparent');
+            ctx.fillStyle = g;
+            ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill();
+        });
+        requestAnimationFrame(animate);
+    }
+    window.addEventListener('resize', initCanvas);
+    initCanvas(); animate();
+
+
+    // --- 2. 核心逻辑 ---
+    const APP_ID = "MTbnlF1EcKYgifi6nWsjLK3v-MdYXbMMI";
+    const APP_KEY = "iPMUnJbKplRokq3h4SUPdpMT";
+    const SERVER_URL = "https://mtbnlf1e.api.lncldglobal.com";
+
+    let dbData = { sites: [] };
+    let dbId = "";
+    let currentTab = 'all';
+    let isAdmin = false;
+    let targetUrl = null;
+
+    // 极速登录 (Auto Login)
+    function autoLogin(el) {
+        const val = el.value;
+        if (val === '666') {
             isAdmin = false;
-            enterApp();
-        } else if (pwd === "1335465359") {
+            unlock('Visitor');
+            el.blur();
+        } else if (val === '1335465359') {
             isAdmin = true;
-            enterApp();
-        } else {
-            alert("密码错误");
+            unlock('Admin');
+            el.blur();
         }
     }
 
-    function enterApp() {
-        document.getElementById('authScreen').style.opacity = '0';
-        setTimeout(() => {
-            document.getElementById('authScreen').style.display = 'none';
-            document.getElementById('mainWindow').style.display = 'flex';
-            initCloud();
-        }, 500);
+    function unlock(role) {
+        const screen = document.getElementById('lockScreen');
+        screen.style.opacity = 0;
+        setTimeout(() => screen.style.display = 'none', 500);
+        
+        document.getElementById('userBadge').innerText = role;
+        if(role === 'Admin') {
+            document.getElementById('userBadge').classList.add('admin');
+        }
+        // 初始化云端
+        AV.init({ appId: APP_ID, appKey: APP_KEY, serverURL: SERVER_URL });
+        syncData();
     }
 
-    function initCloud() {
-        AV.init({ appId: LC_APP_ID, appKey: LC_APP_KEY, serverURL: LC_SERVER_URL });
-        fetchData();
-        startMeteorShower();
-    }
-
-    async function fetchData() {
+    // 数据同步
+    async function syncData() {
+        const q = new AV.Query('GlobalData');
         try {
-            const query = new AV.Query('GlobalData');
-            const result = await query.first();
-            if (result) {
-                DB_ID = result.id;
-                const cloudSites = result.get('sites');
-                if(cloudSites && cloudSites.length > 0) {
-                    localData.sites = cloudSites;
-                } else {
-                    localData.sites = initialSites;
-                    pushData();
-                }
+            const res = await q.first();
+            if (res) {
+                dbId = res.id;
+                const cloudSites = res.get('sites');
+                if(cloudSites) dbData.sites = cloudSites;
+                else { dbData.sites = initialSites; saveData(); }
             } else {
-                const GlobalData = AV.Object.extend('GlobalData');
-                const newData = new GlobalData();
-                newData.set('sites', initialSites);
-                const saved = await newData.save();
-                DB_ID = saved.id;
-                localData.sites = initialSites;
+                const GD = AV.Object.extend('GlobalData');
+                const n = new GD();
+                n.set('sites', initialSites);
+                const s = await n.save();
+                dbId = s.id;
+                dbData.sites = initialSites;
             }
-            render(currentFilter);
-        } catch (error) {
-            console.error(error);
-            localData.sites = initialSites;
-            render(currentFilter);
-        }
+            render();
+        } catch (err) { console.error(err); dbData.sites = initialSites; render(); }
     }
 
-    async function pushData() {
-        if (!DB_ID) return;
-        const todo = AV.Object.createWithoutData('GlobalData', DB_ID);
-        todo.set('sites', localData.sites);
+    async function saveData() {
+        if(!dbId) return;
+        const todo = AV.Object.createWithoutData('GlobalData', dbId);
+        todo.set('sites', dbData.sites);
         await todo.save();
     }
 
-    function render(filter, el) {
-        currentFilter = filter;
-        if(el) {
-            document.querySelectorAll('.nav-item').forEach(i=>i.classList.remove('active'));
-            el.classList.add('active');
-        }
+    function getSite(u) { return dbData.sites.find(s => s.u === u); }
 
+    // 渲染
+    function render() {
         const grid = document.getElementById('grid');
         grid.innerHTML = '';
         
-        let list = [...localData.sites];
+        let list = [...dbData.sites];
         
-        if (filter !== 'all') {
-            if (filter === 'custom') {
-                const initialUrls = new Set(initialSites.map(s => s.u));
-                list = list.filter(s => s.c === 'custom' || !initialUrls.has(s.u));
-            } else if (filter === '5star') {
-                list = list.filter(s => s.rating === 5);
-            } else {
-                list = list.filter(s => s.c === filter);
+        // 1. 筛选
+        if(currentTab !== 'all') {
+            if(currentTab === '5star') list = list.filter(s => s.rating === 5);
+            else if(currentTab === 'custom') {
+                const initUrls = new Set(initialSites.map(s => s.u));
+                list = list.filter(s => s.c === 'custom' || !initUrls.has(s.u));
             }
+            else list = list.filter(s => s.c === currentTab);
         }
 
-        const search = document.querySelector('.search-input').value.toLowerCase();
-        if(search) {
-            list = list.filter(s => s.n.toLowerCase().includes(search) || (s.t && s.t.join('').toLowerCase().includes(search)));
+        // 2. 搜索
+        const key = document.querySelector('.search-box').value.toLowerCase();
+        if(key) list = list.filter(s => s.n.toLowerCase().includes(key));
+
+        // 3. 排序
+        if (currentTab !== 'shein') {
+            list.sort((a, b) => {
+                if (a.pinned && !b.pinned) return -1;
+                if (!a.pinned && b.pinned) return 1;
+                const rA = a.rating || 0; 
+                const rB = b.rating || 0;
+                if (rA <= 2 && rB > 2) return 1; // 差评沉底
+                if (rA > 2 && rB <= 2) return -1;
+                return 0;
+            });
+        } else {
+            // SHEIN 内仅置顶生效
+            list.sort((a, b) => (b.pinned?1:0) - (a.pinned?1:0)); 
         }
 
-        list.reverse();
-        list.sort((a, b) => {
-            const rA = a.rating || 5;
-            const rB = b.rating || 5;
-            if (rA <= 2 && rB > 2) return 1;
-            if (rA > 2 && rB <= 2) return -1;
-            return 0; 
-        });
-
-        list.forEach(item => {
+        list.forEach(s => {
             const card = document.createElement('a');
-            card.className = item.c === 'shein' ? 'card shein-card' : 'card';
-            card.href = item.u;
-            card.target = "_blank";
+            card.className = `card ${s.c === 'shein' ? 'pinned' : ''} ${s.pinned ? 'pinned' : ''}`;
+            // SHEIN 使用特殊样式，这里复用了 pinned 样式或者自定义
+            if(s.c === 'shein') card.style.borderColor = 'rgba(255, 214, 10, 0.3)';
             
-            const tags = item.t ? item.t.map(tag => `<span class="tag">${tag}</span>`).join('') : '';
-            const domain = item.u.replace('https://','').replace('www.','').split('/')[0];
+            card.href = s.u; card.target = "_blank";
             
             let stars = '';
-            if(item.rating) { for(let k=0; k<item.rating; k++) stars += '★'; }
+            if(s.rating) for(let i=0; i<s.rating; i++) stars += '★';
+            
+            const tagsHtml = (s.t || []).map(t => `<span class="tag">${t}</span>`).join('');
+            const pinIcon = s.pinned ? `<div class="pin-icon">📌</div>` : '';
 
             card.innerHTML = `
-                <div>
-                    <div class="site-title">${item.n}</div>
+                ${pinIcon}
+                <div class="site-info">
+                    <h3>${s.n}</h3>
                     <div class="stars">${stars}</div>
-                    <div class="site-url">${domain}</div>
+                    <p>${new URL(s.u).hostname.replace('www.','')}</p>
                 </div>
-                <div class="card-footer">
-                    <div class="tags-row">${tags}</div>
-                    <button class="add-tag-btn" onclick="addTag('${item.u}', event)">+</button>
+                <div class="card-bottom">
+                    <div class="tags">${tagsHtml}</div>
                 </div>
             `;
-            
-            card.oncontextmenu = (e) => {
-                e.preventDefault();
-                targetUrl = item.u;
-                const menu = document.getElementById('ctxMenu');
-                
-                // 权限控制
-                const delBtn = document.getElementById('btnDelete');
-                const tagBtn = document.getElementById('btnTags');
-                if(isAdmin) {
-                    delBtn.style.display = 'block';
-                    tagBtn.style.display = 'block';
-                } else {
-                    delBtn.style.display = 'none';
-                    tagBtn.style.display = 'none';
-                }
 
-                const starDiv = document.getElementById('starInput');
-                starDiv.innerHTML = '';
-                for(let i=1; i<=5; i++) {
-                    const sp = document.createElement('span');
-                    sp.className = 'star-btn ' + (item.rating && i<=item.rating ? 'active':'');
-                    sp.innerText = '★';
-                    sp.onclick = () => { rateSite(i); };
-                    starDiv.appendChild(sp);
-                }
-
-                let x = e.clientX, y = e.clientY;
-                if(x+150 > window.innerWidth) x -= 150;
-                if(y+150 > window.innerHeight) y -= 150;
-                menu.style.left = x + 'px';
-                menu.style.top = y + 'px';
-                menu.style.display = 'block';
-            };
-
+            card.oncontextmenu = (e) => openCtx(e, s.u);
             grid.appendChild(card);
         });
     }
 
-    function openAddModal() { document.getElementById('addModal').style.display = 'flex'; }
+    function switchTab(id, el) {
+        currentTab = id;
+        document.querySelectorAll('.nav-item').forEach(e => e.classList.remove('active'));
+        if(el) el.classList.add('active');
+        render();
+    }
+    function handleSearch() { render(); }
+
+    function openModal() { document.getElementById('addModal').style.display = 'flex'; }
+    function closeModal() { document.getElementById('addModal').style.display = 'none'; }
     
     function autoFillName() {
-        const u = document.getElementById('newUrl').value;
-        if(u && !document.getElementById('newName').value) {
+        const u = document.getElementById('inUrl').value;
+        if(u && !document.getElementById('inName').value) {
             try { 
                 const d = new URL(u.startsWith('http')?u:'https://'+u).hostname;
-                document.getElementById('newName').value = d.replace('www.','').split('.')[0];
+                document.getElementById('inName').value = d.replace('www.','').split('.')[0];
             } catch(e){}
         }
     }
 
-    function submitNewSite() {
-        let u = document.getElementById('newUrl').value;
-        const n = document.getElementById('newName').value;
-        const tStr = document.getElementById('newTags').value;
-        const c = document.getElementById('newCat').value;
-
-        if(!u || !n) return alert("请输入名称和网址");
+    function saveSite() {
+        const n = document.getElementById('inName').value;
+        let u = document.getElementById('inUrl').value;
+        const t = document.getElementById('inTags').value;
+        const c = document.getElementById('inCat').value;
+        
+        if(!n || !u) return alert('完整填写');
         if(!u.startsWith('http')) u = 'https://' + u;
-
-        const newSite = {
-            n: n, u: u, c: c,
-            t: tStr ? tStr.split(/,|，/) : ['网友推荐']
-        };
-
-        localData.sites.push(newSite);
-        pushData();
-        document.getElementById('addModal').style.display = 'none';
-        document.getElementById('newUrl').value = '';
-        document.getElementById('newName').value = '';
-        document.getElementById('newTags').value = '';
-        alert("添加成功！");
-        render('custom'); 
+        
+        dbData.sites.unshift({ n, u, c, t: t ? t.split(/,|，/) : [], rating: 0 });
+        saveData(); closeModal(); render();
+        alert('添加成功');
     }
 
-    function deleteSite() {
-        if(!isAdmin) return; 
-        if(confirm("确定删除此网站？")) {
-            localData.sites = localData.sites.filter(s => s.u !== targetUrl);
-            pushData();
-            render(currentFilter);
-            document.getElementById('ctxMenu').style.display = 'none';
-        }
-    }
-
-    function renameSite() {
-        const newName = prompt("输入新名称:");
-        if(newName) {
-            const site = localData.sites.find(s => s.u === targetUrl);
-            if(site) {
-                site.n = newName;
-                pushData();
-                render(currentFilter);
-            }
-            document.getElementById('ctxMenu').style.display = 'none';
-        }
-    }
+    const ctx = document.getElementById('ctxMenu');
+    document.addEventListener('click', () => ctx.style.display = 'none');
     
-    function manageTags() {
-        if(!isAdmin) return;
-        const site = localData.sites.find(s => s.u === targetUrl);
-        if(site) {
-            const currentTags = (site.t || []).join(", ");
-            const newTagsStr = prompt("编辑标签 (逗号分隔，留空则清空):", currentTags);
-            if(newTagsStr !== null) {
-                site.t = newTagsStr.trim() ? newTagsStr.split(/,|，/).map(s=>s.trim()) : [];
-                pushData();
-                render(currentFilter);
-            }
-            document.getElementById('ctxMenu').style.display = 'none';
-        }
-    }
-    
-    function rateSite(score) {
-        const site = localData.sites.find(s => s.u === targetUrl);
-        if(site) {
-            site.rating = score;
-            pushData();
-            render(currentFilter);
-        }
-    }
-
-    function addTag(u, e) {
+    function openCtx(e, u) {
         e.preventDefault(); e.stopPropagation();
-        const t = prompt("输入新标签:");
-        if(t) { 
-            const site = localData.sites.find(s => s.u === u);
-            if(site) {
-                if(!site.t) site.t = []; 
-                site.t.push(t);
-                pushData();
-                render(currentFilter);
-            }
-        }
+        targetUrl = u;
+        const site = getSite(u);
+        
+        // 管理员显示更多
+        document.querySelectorAll('.ctx-admin').forEach(el => el.style.display = isAdmin ? 'flex' : 'none');
+        
+        const pinBtn = document.getElementById('pinBtn');
+        if(pinBtn) pinBtn.innerText = site.pinned ? '🚫 取消置顶' : '📌 置顶此卡片';
+
+        ctx.style.display = 'block';
+        ctx.style.left = Math.min(e.clientX, window.innerWidth - 150) + 'px';
+        ctx.style.top = Math.min(e.clientY, window.innerHeight - 200) + 'px';
     }
 
-    function handleSearch(val) { render(currentFilter); }
-
-    document.addEventListener('click', e => {
-        if(!e.target.closest('.card') && !e.target.closest('.ctx-menu')) {
-            document.getElementById('ctxMenu').style.display = 'none';
+    function rateSite(r) {
+        const s = getSite(targetUrl);
+        if(s) { s.rating = r; saveData(); render(); }
+    }
+    function renameSite() {
+        const s = getSite(targetUrl);
+        const n = prompt('新名称:', s.n);
+        if(n) { s.n = n; saveData(); render(); }
+    }
+    function deleteSite() {
+        if(confirm('确定删除?')) {
+            dbData.sites = dbData.sites.filter(s => s.u !== targetUrl);
+            saveData(); render();
         }
-    });
-
-    function startMeteorShower() {
-        setInterval(() => {
-            if(document.body.classList.contains('theme-white')) return; 
-            const m = document.createElement('div');
-            m.className = 'meteor';
-            m.style.left = Math.random() * window.innerWidth + 'px';
-            m.style.top = Math.random() * window.innerHeight * 0.5 + 'px';
-            m.style.animation = `meteor-fly ${0.5+Math.random()}s linear`;
-            document.getElementById('meteorLayer').appendChild(m);
-            setTimeout(()=>m.remove(), 2000);
-        }, 1500);
+    }
+    function togglePin() {
+        const s = getSite(targetUrl);
+        s.pinned = !s.pinned;
+        saveData(); render();
+    }
+    function manageTags() {
+        const s = getSite(targetUrl);
+        const t = prompt('编辑标签 (逗号分隔):', (s.t||[]).join(','));
+        if(t !== null) { s.t = t.split(/,|，/); saveData(); render(); }
     }
 
+    // --- 初始数据 ---
     const initialSites = [
         // SHEIN
         {n:"SHEIN 美国", u:"https://us.shein.com", t:["北美","总部"], c:"shein"},
@@ -863,3 +777,4 @@
 </script>
 </body>
 </html>
+

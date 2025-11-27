@@ -7,9 +7,10 @@ interface SiteCardProps {
   onTagAdd: (url: string) => void;
   onContextMenu: (e: React.MouseEvent, site: Site) => void;
   themeName?: string;
+  onClick?: (site: Site) => void;
 }
 
-const SiteCard: React.FC<SiteCardProps> = ({ site, onTagAdd, onContextMenu, themeName }) => {
+const SiteCard: React.FC<SiteCardProps> = ({ site, onTagAdd, onContextMenu, themeName, onClick }) => {
   const isShein = site.c === 'shein';
   const domain = site.u.replace('https://', '').replace('www.', '').split('/')[0];
   const stars = '★'.repeat(site.rating || 0);
@@ -38,6 +39,12 @@ const SiteCard: React.FC<SiteCardProps> = ({ site, onTagAdd, onContextMenu, them
     ${isShein && themeName === 'White' ? '!text-[#d4a017]' : ''}
   `;
 
+  const handleClick = () => {
+    if (onClick) {
+      onClick(site);
+    }
+  };
+
   return (
     <a 
       href={site.u} 
@@ -46,6 +53,7 @@ const SiteCard: React.FC<SiteCardProps> = ({ site, onTagAdd, onContextMenu, them
       className={cardClass}
       style={cardStyle}
       onContextMenu={(e) => onContextMenu(e, site)}
+      onClick={handleClick}
       onMouseEnter={(e) => e.currentTarget.style.boxShadow = 'var(--card-shadow-hover)'}
       onMouseLeave={(e) => e.currentTarget.style.boxShadow = 'var(--card-shadow)'}
     >

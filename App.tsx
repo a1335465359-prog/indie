@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useMemo } from 'react';
 import { Site, ContextMenuState, CategoryFilter } from './types';
 import { THEMES } from './constants';
 import { 
@@ -7,10 +8,14 @@ import {
   updateSite, 
   deleteSite 
 } from './services/storageService';
+import { recordClick, getTopSites } from './services/localStats';
+
 import AuroraBackground from './components/AuroraBackground';
 import AuthScreen from './components/AuthScreen';
 import Sidebar from './components/Sidebar';
 import SiteCard from './components/SiteCard';
+
+const WALLPAPER_KEY = 'indie_nav_wallpaper';
 
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -19,8 +24,13 @@ const App: React.FC = () => {
   const [sites, setSites] = useState<Site[]>([]);
   const [filter, setFilter] = useState<CategoryFilter>('all');
   const [search, setSearch] = useState('');
-  const [themeIndex, setThemeIndex] = useState(3); // Start with Stars
   
+  // Theme State with Local Storage Persistence
+  const [themeIndex, setThemeIndex] = useState(3); // Default to Stars if no local storage
+
+  // Stats State
+  const [clickVersion, setClickVersion] = useState(0); // Used to trigger re-calc of top sites
+
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0, siteUrl: null });
   const [showAddModal, setShowAddModal] = useState(false);
 
@@ -30,15 +40,37 @@ const App: React.FC = () => {
   const [newTags, setNewTags] = useState('');
   const [newCat, setNewCat] = useState('custom');
 
+  // Load Sites
   useEffect(() => {
-    // Fetch Data (initializes Cloud internally)
     fetchSites().then(data => {
       setSites(data);
     });
   }, []);
 
+  // Load Wallpaper Preference
+  useEffect(() => {
+    try {
+      const savedMode = localStorage.getItem(WALLPAPER_KEY);
+      if (savedMode) {
+        // Find theme with this mode
+        const foundIndex = THEMES.findIndex(t => t.bgMode === savedMode);
+        if (foundIndex !== -1) {
+          setThemeIndex(foundIndex);
+        }
+      }
+    } catch (e) {
+      console.error("Failed to load wallpaper preference", e);
+    }
+  }, []);
+
+  // Compute Top Sites locally
+  const topSites = useMemo(() => {
+    return getTopSites(sites, 20);
+  }, [sites, clickVersion]);
+
   const currentTheme = THEMES[themeIndex];
 
+  // Apply Theme Vars
   useEffect(() => {
     const root = document.documentElement;
     Object.entries(currentTheme.vars).forEach(([key, value]) => {
@@ -48,7 +80,15 @@ const App: React.FC = () => {
   }, [themeIndex]);
 
   const toggleTheme = () => {
-    setThemeIndex((prev) => (prev + 1) % THEMES.length);
+    setThemeIndex((prev) => {
+      const nextIndex = (prev + 1) % THEMES.length;
+      const nextTheme = THEMES[nextIndex];
+      // Save preference
+      try {
+        localStorage.setItem(WALLPAPER_KEY, nextTheme.bgMode);
+      } catch(e) { console.error(e); }
+      return nextIndex;
+    });
   };
 
   const handleLogin = (admin: boolean) => {
@@ -56,10 +96,16 @@ const App: React.FC = () => {
     setIsAdmin(admin);
   };
 
+  const handleSiteClick = (site: Site) => {
+    // Record locally using objectId if available (cloud) or url (legacy)
+    recordClick(site.objectId || site.u);
+    // Force update of top sites
+    setClickVersion(v => v + 1);
+  };
+
   const filteredSites = sites.filter(site => {
     if (filter !== 'all') {
       if (filter === 'custom') {
-         // Custom filter logic can be adjusted if needed
          if (site.c !== 'custom') return false; 
       } else if (filter === '5star') {
         if ((site.rating || 0) !== 5) return false;
@@ -252,7 +298,15 @@ const App: React.FC = () => {
       <AuroraBackground mode={currentTheme.bgMode} />
       
       <div className="relative z-10 flex w-full h-full max-w-[1920px] mx-auto p-4 gap-4 flex-col md:flex-row">
-        <Sidebar currentFilter={filter} setFilter={setFilter} />
+        <Sidebar 
+          currentFilter={filter} 
+          setFilter={setFilter}
+          topSites={topSites}
+          onTagAdd={handleAddTag}
+          onContextMenu={handleContextMenu}
+          onSiteClick={handleSiteClick}
+          themeName={currentTheme.name}
+        />
 
         <main 
           className="flex-1 bg-[var(--glass-bg)] border border-[var(--glass-border)] rounded-2xl flex flex-col overflow-hidden relative transition-colors duration-500 shadow-2xl"
@@ -283,6 +337,7 @@ const App: React.FC = () => {
                   site={site} 
                   onTagAdd={handleAddTag} 
                   onContextMenu={handleContextMenu}
+                  onClick={handleSiteClick}
                   themeName={currentTheme.name}
                 />
               ))}

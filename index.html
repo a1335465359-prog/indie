@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Indie Nav - V10 Ultimate</title>
+<!-- 引入 LeanCloud SDK -->
 <script src="https://cdn.jsdelivr.net/npm/leancloud-storage@4.15.0/dist/av-min.js"></script>
 <style>
     :root {
@@ -17,7 +18,7 @@
         --danger: #ff453a;
         --gold: #ffd60a;
         --radius: 16px;
-        --font: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+        --font: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; outline: none; -webkit-tap-highlight-color: transparent; user-select: none; }
@@ -30,7 +31,7 @@
         color: var(--text-main);
     }
 
-    /* --- 1. Canvas 流体背景 (高性能不掉帧) --- */
+    /* --- 1. Canvas 流体背景 --- */
     #canvas-bg {
         position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0;
     }
@@ -112,7 +113,7 @@
         transform: translateY(-4px); background: var(--card-hover); border-color: rgba(255,255,255,0.3);
         box-shadow: 0 10px 30px rgba(0,0,0,0.3);
     }
-    /* 标记 */
+    /* 置顶样式 */
     .card.pinned { border: 1px solid var(--accent); background: rgba(10, 132, 255, 0.08); }
     .pin-icon { position: absolute; top: 10px; right: 10px; color: var(--accent); font-size: 14px; transform: rotate(45deg); }
 
@@ -148,7 +149,7 @@
         background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 12px; color: #fff;
     }
     
-    /* 弹窗 (修复背景色) */
+    /* 弹窗 */
     .modal-mask {
         position: fixed; top:0; left:0; width:100%; height:100%; z-index:200;
         background: rgba(0,0,0,0.7); backdrop-filter: blur(5px);
@@ -160,7 +161,7 @@
         width: 100%; padding: 12px; margin-bottom: 12px; border-radius: 8px;
         background: #2c2c2e; border: 1px solid #3a3a3c; color: #fff; font-size: 14px;
     }
-    /* 修复：Select 下拉选项背景色 */
+    /* 修复下拉框背景色 */
     .modal select option { background-color: #1c1c1e; color: #fff; padding: 10px; }
     
     .btn-row { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; }
@@ -177,7 +178,7 @@
     .ctx-item { padding: 8px; font-size: 13px; color: #eee; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 8px;}
     .ctx-item:hover { background: var(--accent); color: #fff; }
     .ctx-line { height: 1px; background: #333; margin: 4px 0; }
-    .ctx-admin { display: none; color: #ff6b6b; } /* 默认隐藏 */
+    .ctx-admin { display: none; } /* 默认隐藏，管理员显示 */
     
     @media (max-width: 900px) {
         .app-container { flex-direction: column; padding: 0; }
@@ -209,7 +210,7 @@
 <!-- 3. 主程序 -->
 <div class="app-container">
     <aside class="sidebar">
-        <div class="logo">Indie Nav V10</div>
+        <div class="logo">Indie Nav</div>
         
         <div class="nav-group">
             <div class="nav-title">LIBRARY</div>
@@ -295,7 +296,7 @@
 </div>
 
 <script>
-    // --- 1. 绚丽流体背景 (Canvas) ---
+    // --- 1. Canvas 绚丽背景 ---
     const canvas = document.getElementById('canvas-bg');
     const ctx = canvas.getContext('2d');
     let w, h, particles = [];
@@ -304,23 +305,25 @@
         w = canvas.width = window.innerWidth;
         h = canvas.height = window.innerHeight;
         particles = [];
-        // 创建 5 个大光团
-        for(let i=0; i<5; i++) {
+        // 6个彩色光团
+        for(let i=0; i<6; i++) {
             particles.push({
                 x: Math.random()*w, y: Math.random()*h,
-                vx: (Math.random()-0.5)*0.5, vy: (Math.random()-0.5)*0.5,
-                r: Math.random()*200 + 300,
-                color: `hsla(${Math.random()*60 + 200}, 80%, 60%, 0.4)` // 蓝紫色调
+                vx: (Math.random()-0.5)*0.6, vy: (Math.random()-0.5)*0.6,
+                r: Math.random()*300 + 200,
+                // 蓝、紫、青色系
+                color: `hsla(${Math.random()*60 + 180}, 70%, 60%, 0.25)`
             });
         }
     }
 
     function animate() {
-        ctx.fillStyle = '#050714'; // 底色
+        ctx.fillStyle = '#000'; // 深黑底色
         ctx.fillRect(0, 0, w, h);
         
         particles.forEach(p => {
             p.x += p.vx; p.y += p.vy;
+            // 边界反弹
             if(p.x < -p.r) p.x = w+p.r; if(p.x > w+p.r) p.x = -p.r;
             if(p.y < -p.r) p.y = h+p.r; if(p.y > h+p.r) p.y = -p.r;
             
@@ -345,7 +348,7 @@
     let dbId = "";
     let currentTab = 'all';
     let isAdmin = false;
-    let targetUrl = null; // 右键目标
+    let targetUrl = null;
 
     // 登录
     function checkPwd(e) {
@@ -367,10 +370,8 @@
         document.getElementById('lockScreen').style.opacity = 0;
         setTimeout(() => document.getElementById('lockScreen').style.display = 'none', 500);
         document.getElementById('userBadge').innerText = role;
-        if(role === 'Admin') {
-            document.getElementById('userBadge').classList.add('admin');
-        }
-        // 初始化云端
+        if(role === 'Admin') document.getElementById('userBadge').classList.add('admin');
+        
         AV.init({ appId: APP_ID, appKey: APP_KEY, serverURL: SERVER_URL });
         syncData();
     }
@@ -386,7 +387,6 @@
                 if(cloudSites) dbData.sites = cloudSites;
                 else { dbData.sites = initialSites; saveData(); }
             } else {
-                // 首次创建
                 const GD = AV.Object.extend('GlobalData');
                 const n = new GD();
                 n.set('sites', initialSites);
@@ -428,26 +428,33 @@
         const key = document.querySelector('.search-box').value.toLowerCase();
         if(key) list = list.filter(s => s.n.toLowerCase().includes(key));
 
-        // 3. 排序 (置顶优先 -> 评分 -> 默认)
-        // 这里修正：Shein不需要反转，其他可以反转
-        // 简单逻辑：先按置顶排，再按评分排
-        list.sort((a, b) => {
-            // 置顶最前
-            if (a.pinned && !b.pinned) return -1;
-            if (!a.pinned && b.pinned) return 1;
-            
-            // 评分排序 (高分前，低分后)
-            const rA = a.rating || 0; 
-            const rB = b.rating || 0;
-            if (rA <= 2 && rB > 2) return 1; // 差评沉底
-            if (rA > 2 && rB <= 2) return -1;
-            
-            return 0; // 默认顺序（对于 SHEIN 保持原数组顺序）
-        });
+        // 3. 排序逻辑
+        if (currentTab === 'shein') {
+            // SHEIN 专属排序：只让置顶的排前面，其他严格保持原数组顺序(美国->全球->欧洲...)
+            // 因为 initialSites 里已经是排好的顺序，所以这里只要不重排即可，只处理置顶
+            // 稳定排序：
+            list.sort((a, b) => {
+                if (a.pinned && !b.pinned) return -1;
+                if (!a.pinned && b.pinned) return 1;
+                return 0; // 保持原序
+            });
+        } else {
+            // 其他分类：置顶 > 评分 > 默认
+            list.sort((a, b) => {
+                if (a.pinned && !b.pinned) return -1;
+                if (!a.pinned && b.pinned) return 1;
+                
+                const rA = a.rating || 0; 
+                const rB = b.rating || 0;
+                if (rA <= 2 && rB > 2) return 1;
+                if (rA > 2 && rB <= 2) return -1;
+                return 0;
+            });
+        }
 
         list.forEach(s => {
             const card = document.createElement('a');
-            card.className = `card ${s.c === 'shein' ? 'shein-card' : ''} ${s.pinned ? 'pinned' : ''}`;
+            card.className = `card ${s.pinned ? 'pinned' : ''}`;
             card.href = s.u; card.target = "_blank";
             
             let stars = '';
@@ -473,7 +480,6 @@
         });
     }
 
-    // 交互
     function switchTab(id, el) {
         currentTab = id;
         document.querySelectorAll('.nav-item').forEach(e => e.classList.remove('active'));
@@ -482,7 +488,6 @@
     }
     function handleSearch() { render(); }
 
-    // 模态框
     function openModal() { document.getElementById('addModal').style.display = 'flex'; }
     function closeModal() { document.getElementById('addModal').style.display = 'none'; }
     function saveSite() {
@@ -491,15 +496,15 @@
         const t = document.getElementById('inTags').value;
         const c = document.getElementById('inCat').value;
         
-        if(!n || !u) return alert('完整填写');
+        if(!n || !u) return alert('请填写完整');
         if(!u.startsWith('http')) u = 'https://' + u;
         
-        dbData.sites.unshift({ n, u, c, t: t.split(/,|，/), rating: 0 });
+        // 新增网站默认插到最前
+        dbData.sites.unshift({ n, u, c, t: t ? t.split(/,|，/) : [], rating: 0 });
         saveData(); closeModal(); render();
         alert('添加成功');
     }
 
-    // 右键菜单逻辑
     const ctx = document.getElementById('ctxMenu');
     document.addEventListener('click', () => ctx.style.display = 'none');
     
@@ -508,12 +513,8 @@
         targetUrl = u;
         const site = getSite(u);
         
-        // 管理员显示更多选项
-        document.querySelectorAll('.ctx-admin').forEach(el => {
-            el.style.display = isAdmin ? 'flex' : 'none';
-        });
+        document.querySelectorAll('.ctx-admin').forEach(el => el.style.display = isAdmin ? 'flex' : 'none');
         
-        // 更新置顶按钮文字
         const pinBtn = document.getElementById('pinBtn');
         pinBtn.innerText = site.pinned ? '🚫 取消置顶' : '📌 置顶此卡片';
 
@@ -548,31 +549,216 @@
         if(t !== null) { s.t = t.split(/,|，/); saveData(); render(); }
     }
 
-    // --- 初始数据 (SHEIN 顺序已固化) ---
+    // --- 初始数据 (SHEIN 按你的要求排序) ---
     const initialSites = [
-        // SHEIN (重要：不反转顺序)
+        // SHEIN (美国->全球->英国...)
         {n:"SHEIN 美国", u:"https://us.shein.com", t:["北美","总部"], c:"shein"},
-        {n:"SHEIN 全球站", u:"https://roe.shein.com", t:["ROE"], c:"shein"},
+        {n:"SHEIN 全球站", u:"https://roe.shein.com", t:["ROE","全球"], c:"shein"},
         {n:"SHEIN 英国", u:"https://www.shein.co.uk", t:["欧洲","英镑"], c:"shein"},
         {n:"SHEIN 法国", u:"https://fr.shein.com", t:["欧洲","法语"], c:"shein"},
         {n:"SHEIN 德国", u:"https://de.shein.com", t:["欧洲","德语"], c:"shein"},
+        {n:"SHEIN 意大利", u:"https://it.shein.com", t:["欧洲","意语"], c:"shein"},
+        {n:"SHEIN 荷兰", u:"https://nl.shein.com", t:["欧洲","荷语"], c:"shein"},
+        {n:"SHEIN 葡萄牙", u:"https://pt.shein.com", t:["欧洲","葡语"], c:"shein"},
+        {n:"SHEIN 瑞典", u:"https://se.shein.com", t:["北欧"], c:"shein"},
+        {n:"SHEIN 波兰", u:"https://pl.shein.com", t:["东欧"], c:"shein"},
+        {n:"SHEIN 丹麦", u:"https://dk.shein.com", t:["北欧"], c:"shein"},
+        {n:"SHEIN 罗马尼亚", u:"https://ro.shein.com", t:["东欧"], c:"shein"},
+        {n:"SHEIN 瑞士", u:"https://ch.shein.com", t:["中欧"], c:"shein"},
+        {n:"SHEIN 奥地利", u:"https://m.shein.com/at/", t:["中欧","德语"], c:"shein"},
         {n:"SHEIN 日本", u:"https://jp.shein.com", t:["亚太","日语"], c:"shein"},
+        {n:"SHEIN 韩国", u:"https://kr.shein.com", t:["亚太","韩语"], c:"shein"},
+        {n:"SHEIN 新加坡", u:"https://sg.shein.com", t:["东南亚"], c:"shein"},
+        {n:"SHEIN 马来西亚", u:"https://my.shein.com", t:["东南亚"], c:"shein"},
+        {n:"SHEIN 泰国", u:"https://th.shein.com", t:["东南亚","泰语"], c:"shein"},
+        {n:"SHEIN 菲律宾", u:"https://ph.shein.com", t:["东南亚"], c:"shein"},
+        {n:"SHEIN 印尼", u:"https://id.shein.com", t:["东南亚"], c:"shein"},
+        {n:"SHEIN 越南", u:"https://www.shein.com.vn", t:["东南亚"], c:"shein"},
+        {n:"SHEIN 香港", u:"https://www.shein.com.hk", t:["亚太","繁体"], c:"shein"},
+        {n:"SHEIN 澳洲", u:"https://au.shein.com", t:["澳洲","澳元"], c:"shein"},
         {n:"SHEIN 巴西", u:"https://br.shein.com", t:["南美","葡语"], c:"shein"},
-        {n:"SHEIN 中东", u:"https://ar.shein.com", t:["中东","沙特"], c:"shein"},
         {n:"SHEIN 墨西哥", u:"https://www.shein.com.mx", t:["拉美","西语"], c:"shein"},
-        
-        // 其他分类 (示例)
+        {n:"SHEIN 加拿大", u:"https://ca.shein.com", t:["北美","加元"], c:"shein"},
+        {n:"SHEIN 阿根廷", u:"https://m.shein.com/arg/", t:["南美"], c:"shein"},
+        {n:"SHEIN 中东", u:"https://ar.shein.com", t:["中东","沙特"], c:"shein"},
+        {n:"SHEIN 以色列", u:"https://il.shein.com", t:["中东"], c:"shein"},
+        {n:"SHEIN 摩洛哥", u:"https://ma.shein.com", t:["北非"], c:"shein"},
+        {n:"SHEIN 南非", u:"https://za.shein.com", t:["非洲"], c:"shein"},
+        {n:"SHEIN 西班牙", u:"https://es.shein.com", t:["欧洲","西语"], c:"shein"},
+        {n:"SHEIN EUR", u:"https://eur.shein.com", t:["欧盟"], c:"shein"},
+        {n:"SHEIN EUQS", u:"https://euqs.shein.com", t:["欧盟"], c:"shein"},
+
+        // 其他网站
+        {n:"Easy Clothes", u:"https://www.easy-clothes.us", t:["美国","休闲"], c:"young"},
+        {n:"Sungtin", u:"https://sungtin.com", t:["韩系","基础"], c:"young"},
+        {n:"White Fox", u:"https://whitefoxboutique.com.au", t:["Y2K","辣妹"], c:"young"},
+        {n:"Ongess", u:"https://www.ongess.com", t:["印花","度假"], c:"young"},
         {n:"Cider", u:"https://www.shopcider.com", t:["Z世代","甜酷"], c:"young"},
-        {n:"White Fox", u:"https://whitefoxboutique.com.au", t:["澳洲","辣妹"], c:"young"},
-        {n:"Reformation", u:"https://www.thereformation.com", t:["茶歇裙"], c:"elegant"},
-        {n:"Lululemon", u:"https://shop.lululemon.com", t:["瑜伽"], c:"sport"},
-        {n:"Sezane", u:"https://www.sezane.com", t:["法式"], c:"french"},
-        {n:"House of CB", u:"https://www.houseofcb.com", t:["礼服"], c:"gown"},
-        {n:"Levi's", u:"https://www.levi.com", t:["牛仔"], c:"denim"},
-        {n:"Free People", u:"https://www.freepeople.com", t:["波西米亚"], c:"linen"},
+        {n:"Tata Dress", u:"https://www.tatadress.com", t:["牛仔","碎花"], c:"young"},
+        {n:"Stylewe", u:"https://www.stylewe.com", t:["性感","礼服"], c:"young"},
+        {n:"Bella Barnett", u:"https://www.bellabarnett.com", t:["夜店","亮片"], c:"young"},
+        {n:"Garage", u:"https://www.garageclothing.com", t:["运动","卫衣"], c:"young"},
+        {n:"Edikted", u:"https://edikted.com", t:["芭蕾core"], c:"young"},
+        {n:"Odd Muse", u:"https://oddmuse.co.uk", t:["极简","轻奢"], c:"young"},
+        {n:"Beginning Boutique", u:"https://www.beginningboutique.com", t:["澳洲","派对"], c:"young"},
+        {n:"I.AM.GIA", u:"https://iamgia.com", t:["机能","废土"], c:"young"},
+        {n:"Miaou", u:"https://miaou.com", t:["法式辣妹"], c:"young"},
+        {n:"Lioness", u:"https://lionessfashion.com", t:["极简","冷淡"], c:"young"},
+        {n:"Jaded London", u:"https://jadedldn.com", t:["街头","朋克"], c:"young"},
+        {n:"Romwe", u:"https://us.romwe.com", t:["低价","暗黑"], c:"young"},
+        {n:"Like My Choice", u:"https://likemychoice.com", t:["印花","波西米亚"], c:"young"},
+        {n:"Shop Allison", u:"https://shopallison.com", t:["亮片","派对"], c:"young"},
+        {n:"Mermaid Way", u:"https://mermaidway.com", t:["网纱","皮质"], c:"young"},
+        {n:"Lulus", u:"https://www.lulus.com", t:["仙女裙"], c:"young"},
+        {n:"Red Dress", u:"https://www.reddress.com", t:["名媛"], c:"young"},
+        {n:"Retro Stage", u:"https://www.retro-stage.com", t:["复古","50s"], c:"young"},
+        {n:"Choies", u:"https://www.choies.com", t:["爆品"], c:"young"},
+        {n:"Emery Rose", u:"https://www.shopemeryrose.com", t:["印花","平价"], c:"young"},
+        {n:"MOTF", u:"https://www.shopmotf.com", t:["少淑","通勤"], c:"young"},
+        {n:"Glassons", u:"https://www.glassons.com", t:["澳新","休闲"], c:"young"},
+        {n:"Chicwish", u:"https://www.chicwish.com", t:["复古","甜美"], c:"elegant"},
+        {n:"Coldwater Creek", u:"https://www.coldwatercreek.com", t:["成熟","自然"], c:"elegant"},
+        {n:"Vici Collection", u:"https://www.vicicollection.com", t:["轻奢","通勤"], c:"elegant"},
+        {n:"CutelyCovered", u:"https://cutelycovered.com", t:["教会","得体"], c:"elegant"},
+        {n:"Da Barretta", u:"https://dabaretta.com", t:["中年","优雅"], c:"elegant"},
+        {n:"Novodiva", u:"https://novodiva.com", t:["晚宴"], c:"elegant"},
+        {n:"Dissh", u:"https://dissh.com", t:["极简","棉麻"], c:"elegant"},
+        {n:"ASTR The Label", u:"https://www.astrthelabel.com", t:["西装","轻熟"], c:"elegant"},
+        {n:"Abigails", u:"https://www.abigails.shop", t:["中东","长袍"], c:"elegant"},
+        {n:"Rosie Dress", u:"https://www.rosiedress.com", t:["快时尚","通勤"], c:"elegant"},
+        {n:"Her Fashioned Life", u:"https://www.shopltk.com/explore/herfashionedlife", t:["OldMoney"], c:"elegant"},
+        {n:"LTK", u:"https://www.shopltk.com", t:["种草"], c:"elegant"},
+        {n:"Free People", u:"https://www.freepeople.com", t:["波西米亚"], c:"elegant"},
+        {n:"Oyrosy", u:"https://oyrosy.com", t:["西服"], c:"elegant"},
+        {n:"Hot Lula", u:"https://www.hotlula.com", t:["连衣裙"], c:"elegant"},
+        {n:"NA-KD", u:"https://www.na-kd.com", t:["北欧","通勤"], c:"elegant"},
+        {n:"Uoozee", u:"https://www.uoozeefashion.com", t:["混合印花"], c:"elegant"},
+        {n:"Tuckernuck", u:"https://tnuck.com", t:["贵妇","POLO"], c:"elegant"},
+        {n:"Orolay", u:"https://www.orolay.com", t:["羽绒"], c:"elegant"},
+        {n:"Ritaros", u:"https://www.ritaros.com/es", t:["西班牙","礼服"], c:"elegant"},
+        {n:"Vivaia", u:"https://www.vivaia.com", t:["环保鞋"], c:"elegant"},
+        {n:"Popilush", u:"https://www.popilush.com", t:["塑形"], c:"sport"},
+        {n:"Oh Polly", u:"https://us.ohpolly.com", t:["瑜伽","紧身"], c:"sport"},
+        {n:"OQQ", u:"https://oqq.com", t:["连体"], c:"sport"},
+        {n:"PacSun", u:"https://www.pacsun.com", t:["滑板","潮牌"], c:"sport"},
+        {n:"Aelfric Eden", u:"https://www.aelfriceden.com", t:["街头","oversize"], c:"sport"},
+        {n:"Parthea", u:"https://www.azaleawang.com", t:["未来感"], c:"sport"},
+        {n:"Dominnico", u:"https://dominnico.com", t:["秀场"], c:"sport"},
+        {n:"Halara", u:"https://www.halara.com", t:["裙裤"], c:"sport"},
         {n:"Fashion Nova", u:"https://www.fashionnova.com", t:["大码辣妹"], c:"curve"},
-        {n:"Zara", u:"https://www.zara.com", t:["快时尚"], c:"fast"},
-        {n:"Mango", u:"https://shop.mango.com", t:["南欧"], c:"euro"}
+        {n:"BloomChic", u:"https://www.bloomchic.com", t:["大码","通勤"], c:"curve"},
+        {n:"LovelyWholesale", u:"https://lovelywholesale.com", t:["曲线","街景"], c:"curve"},
+        {n:"Bellizimos", u:"https://www.bellizimos.com", t:["紧身","开叉"], c:"curve"},
+        {n:"Forevershe", u:"https://www.forevershe.com", t:["修身","黑人"], c:"curve"},
+        {n:"Dresspies", u:"https://www.dresspies.com", t:["礼服"], c:"curve"},
+        {n:"Mourban", u:"https://www.mourban.com", t:["街拍"], c:"curve"},
+        {n:"Missinlook", u:"https://www.missinlook.com", t:["派对"], c:"curve"},
+        {n:"Knowfashionstyle", u:"https://www.knowfashionstyle.com", t:["印花"], c:"curve"},
+        {n:"Wearvip", u:"https://wearvip.com", t:["夜店"], c:"curve"},
+        {n:"Elevenurban", u:"https://elevenurban.com", t:["街头"], c:"curve"},
+        {n:"Queenfy", u:"https://www.queenfy.com", t:["曲线"], c:"curve"},
+        {n:"Outyfit", u:"https://outyfit.com", t:["基础"], c:"curve"},
+        {n:"Newlydress", u:"https://www.newlydress.com", t:["修身"], c:"curve"},
+        {n:"Pansygal", u:"https://www.pansygal.com", t:["休闲"], c:"curve"},
+        {n:"Adoryme", u:"https://adoryme.com", t:["贴身"], c:"curve"},
+        {n:"Curvedress", u:"https://curvedress.com", t:["大码"], c:"curve"},
+        {n:"99jean", u:"https://99jean.com", t:["紧身"], c:"curve"},
+        {n:"144mph", u:"https://www.144mph.com", t:["性感"], c:"curve"},
+        {n:"Empress J", u:"https://empressjboutique.com", t:["女王"], c:"curve"},
+        {n:"Rosyella", u:"https://www.rosyella.com", t:["曲线"], c:"curve"},
+        {n:"Ezcute", u:"https://ezcute.com", t:["派对"], c:"curve"},
+        {n:"NewChic", u:"https://www.newchic.com", t:["中老年","宽松"], c:"fast"},
+        {n:"Zulily", u:"https://www.zulily.com", t:["家庭","折扣"], c:"fast"},
+        {n:"FairySeason", u:"https://www.fairyseason.com", t:["平价","宽松"], c:"fast"},
+        {n:"Lotd", u:"https://www.lotd.com", t:["快时尚"], c:"fast"},
+        {n:"Missguided", u:"https://www.missguided.com", t:["派对"], c:"fast"},
+        {n:"Linkshe", u:"https://www.linkshe.com", t:["节日","泳衣"], c:"fast"},
+        {n:"Chicme", u:"https://www.chicme.com", t:["甜辣","街拍"], c:"fast"},
+        {n:"Dresslily", u:"https://www.dresslily.com", t:["基础"], c:"fast"},
+        {n:"Rotita", u:"https://www.rotita.com", t:["度假","小麦色"], c:"fast"},
+        {n:"Liligal", u:"https://www.liligal.com", t:["基础"], c:"fast"},
+        {n:"Molyca", u:"https://www.molyca.com", t:["纯色"], c:"fast"},
+        {n:"Zaful", u:"https://www.zaful.com", t:["泳衣"], c:"fast"},
+        {n:"Jollychic", u:"https://www.jollychic.com", t:["中东","长袖"], c:"fast"},
+        {n:"Bootymust", u:"https://bootymust.com", t:["贴身"], c:"fast"},
+        {n:"Forplay Catalog", u:"https://forplaycatalog.com", t:["情趣"], c:"fast"},
+        {n:"Lingerie Diva", u:"https://lingeriediva.com", t:["内衣"], c:"fast"},
+        {n:"Dresshead", u:"https://dresshead.com", t:["通勤"], c:"fast"},
+        {n:"Suzhou Dress", u:"https://suzhoudress.com", t:["婚纱"], c:"fast"},
+        {n:"Oshoplive", u:"https://www.oshoplive.com", t:["快时尚"], c:"fast"},
+        {n:"Wanadress", u:"https://wanadress.com", t:["宴会"], c:"fast"},
+        {n:"Ericdress", u:"https://www.ericdress.com", t:["婚礼"], c:"fast"},
+        {n:"Polar Hearts", u:"https://www.polarhearts.com", t:["简约"], c:"fast"},
+        {n:"Red Coco Star", u:"https://www.redcocostar.com", t:["修身"], c:"fast"},
+        {n:"New Mina", u:"https://www.newmina.com", t:["基础"], c:"fast"},
+        {n:"Mrcovic", u:"https://www.mrcovic.com", t:["A字裙"], c:"fast"},
+        {n:"Follow Zap", u:"https://www.followzap.com", t:["快时尚"], c:"fast"},
+        {n:"Adora Pretty", u:"https://www.adorapretty.com", t:["少女"], c:"fast"},
+        {n:"Fabrus Online", u:"https://www.fabrusonline.com", t:["日常"], c:"fast"},
+        {n:"Belle Wholesale", u:"https://www.bellewholesale.com", t:["印花"], c:"fast"},
+        {n:"Ladifit", u:"https://www.ladifit.com", t:["修身"], c:"fast"},
+        {n:"Divas Ruby", u:"https://www.divasruby.com", t:["名媛"], c:"fast"},
+        {n:"Ninimour", u:"https://www.ninimour.com", t:["快时尚"], c:"fast"},
+        {n:"Pick My Boutique", u:"https://www.pickmyboutique.com", t:["精选"], c:"fast"},
+        {n:"Boutique Feel", u:"https://www.boutiquefeel.com", t:["紧身"], c:"fast"},
+        {n:"TB Dress", u:"https://www.tbdress.com", t:["礼服"], c:"fast"},
+        {n:"Cotton On", u:"https://www.cottonon.com", t:["平价"], c:"fast"},
+        {n:"Reserved", u:"https://www.reserved.com", t:["东欧"], c:"fast"},
+        {n:"PrettyLittleThing", u:"https://www.prettylittlething.us", t:["欧美辣妹"], c:"french"},
+        {n:"Mango", u:"https://shop.mango.com", t:["简约"], c:"french"},
+        {n:"SSENSE", u:"https://www.ssense.com", t:["设计师"], c:"french"},
+        {n:"Virgo Boutique", u:"https://virgo-boutique.com", t:["优雅"], c:"french"},
+        {n:"Caroll", u:"https://www.caroll.com", t:["职场"], c:"french"},
+        {n:"Claudie Pierlot", u:"https://www.claudiepierlot.com", t:["轻奢"], c:"french"},
+        {n:"Balzac Paris", u:"https://www.balzac-paris.fr", t:["优雅"], c:"french"},
+        {n:"Marie Marot", u:"https://www.mariemarot.com", t:["白衬衫"], c:"french"},
+        {n:"Boutique Keva", u:"https://www.boutiquekeva.com/en/", t:["成熟"], c:"french"},
+        {n:"Intemporel", u:"https://www.intemporel.shop/", t:["极简"], c:"french"},
+        {n:"Prettywire", u:"https://www.prettywire.fr", t:["森系"], c:"french"},
+        {n:"Promod", u:"https://www.promod.com/en/", t:["平价"], c:"french"},
+        {n:"Petite Mendigote", u:"https://www.petitemendigote.com", t:["文艺"], c:"french"},
+        {n:"Hello Moon", u:"https://www.hellomoon-shop.com/fr", t:["简约"], c:"french"},
+        {n:"Minodusud", u:"https://www.minodusud.com/fr/pret-a-porter", t:["波西"], c:"french"},
+        {n:"Shopaholics Dream", u:"https://shopaholicsdream.pl", t:["快时尚"], c:"euro"},
+        {n:"Andzela", u:"https://www.andzela.com", t:["平价"], c:"euro"},
+        {n:"Milutka", u:"https://www.milutka.com", t:["立陶宛"], c:"euro"},
+        {n:"Nasha Moda", u:"https://www.nashamoda.by", t:["白俄罗斯"], c:"euro"},
+        {n:"Blyzka", u:"https://blyzka.by", t:["通勤"], c:"euro"},
+        {n:"Knitteriet", u:"https://knitteriet.no", t:["挪威"], c:"euro"},
+        {n:"Pachamama", u:"https://www.pachamamaknitwear.com/Womens-Cardigans", t:["英国"], c:"euro"},
+        {n:"Rebellious", u:"https://www.rebelliousfashion.co.uk", t:["英国"], c:"euro"},
+        {n:"Qbunitastore", u:"https://www.qbunitastore.com.br", t:["巴西"], c:"euro"},
+        {n:"Magmac", u:"https://www.magmac.pl", t:["波兰"], c:"euro"},
+        {n:"So Italian", u:"https://www.soitalian.pl/pl", t:["意式"], c:"euro"},
+        {n:"La Butik", u:"https://www.labutik.sklep.pl", t:["波兰"], c:"euro"},
+        {n:"Elagia", u:"https://www.elagia.com", t:["西装"], c:"euro"},
+        {n:"Meshki", u:"https://www.meshki.com.au", t:["修身"], c:"gown"},
+        {n:"Missord", u:"https://www.missord.com", t:["礼服"], c:"gown"},
+        {n:"Faeriesty", u:"https://faeriesty.com", t:["派对"], c:"gown"},
+        {n:"Zimmermann", u:"https://www.zimmermann.com", t:["高奢"], c:"gown"},
+        {n:"Dries Van Noten", u:"https://www.driesvannoten.com", t:["艺术"], c:"gown"},
+        {n:"Blumarine", u:"https://www.blumarine.com", t:["高定"], c:"gown"},
+        {n:"Anna Sui", u:"https://annasui.com", t:["复古"], c:"gown"},
+        {n:"Philosophy", u:"https://www.philosophyofficial.com", t:["名媛"], c:"gown"},
+        {n:"Poster Girl", u:"https://poster-girl.com", t:["漆皮"], c:"gown"},
+        {n:"Femkit", u:"https://femkit.de", t:["宫廷"], c:"gown"},
+        {n:"Somnia Romantica", u:"https://somniaromantica.com", t:["哥特"], c:"gown"},
+        {n:"Linennaive", u:"https://www.linennaive.com", t:["亚麻"], c:"gown"},
+        {n:"Jean Paul Gaultier", u:"https://fashion.jeanpaulgaultier.com", t:["解构"], c:"gown"},
+        {n:"Ever-Pretty", u:"https://www.ever-pretty.com", t:["平价"], c:"gown"},
+        {n:"Global Lover", u:"https://global-lover.com", t:["度假"], c:"gown"},
+        {n:"AngelHeart", u:"https://angelheartboutique.com/", t:["西部"], c:"denim"},
+        {n:"Urban Outfitters", u:"https://www.urbanoutfitters.com", t:["工装"], c:"denim"},
+        {n:"Ronner Design", u:"https://ronnerdesign.com", t:["骑马"], c:"denim"},
+        {n:"Monster Valley", u:"https://www.monstervalley.com", t:["户外"], c:"denim"},
+        {n:"Airily", u:"https://airily.eu/en/", t:["欧洲"], c:"linen"},
+        {n:"Soolinen", u:"https://soolinen.com", t:["文艺"], c:"linen"},
+        {n:"Fantasy Linen", u:"https://www.fantasylinen.com", t:["手工"], c:"linen"},
+        {n:"VeryBuy", u:"https://m.verybuy.cc", t:["台系"], c:"linen"},
+        {n:"Big Save", u:"https://www.bigsave.com.tw", t:["家居"], c:"linen"},
+        {n:"Minne", u:"https://minne.com", t:["手作"], c:"linen"},
+        {n:"Mattecoco", u:"https://www.mattecoco.com", t:["小麦色"], c:"linen"},
+        {n:"Hippie Chic", u:"https://hippiechicshop.com", t:["波西"], c:"linen"}
     ];
 
 </script>

@@ -1,5 +1,6 @@
 
 export interface Site {
+  objectId?: string; // LeanCloud ID
   n: string; // name
   u: string; // url
   t: string[]; // tags

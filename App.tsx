@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Site, ContextMenuState, CategoryFilter } from './types';
 import { THEMES } from './constants';
-import { getSites, saveSites } from './services/storageService';
+import { initCloud, fetchSites, createSite, updateSite, deleteSite } from './services/storageService';
 import AuroraBackground from './components/AuroraBackground';
 import AuthScreen from './components/AuthScreen';
 import Sidebar from './components/Sidebar';
@@ -14,8 +14,7 @@ const App: React.FC = () => {
   const [sites, setSites] = useState<Site[]>([]);
   const [filter, setFilter] = useState<CategoryFilter>('all');
   const [search, setSearch] = useState('');
-  // Default to Stars theme (index 3 in THEMES array)
-  const [themeIndex, setThemeIndex] = useState(3);
+  const [themeIndex, setThemeIndex] = useState(3); // Start with Stars
   
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0, siteUrl: null });
   const [showAddModal, setShowAddModal] = useState(false);
@@ -27,16 +26,15 @@ const App: React.FC = () => {
   const [newCat, setNewCat] = useState('custom');
 
   useEffect(() => {
-    // Load sites
-    setSites(getSites());
+    // Initialize Cloud and Load Data
+    initCloud();
+    fetchSites().then(data => setSites(data));
   }, []);
 
   const currentTheme = THEMES[themeIndex];
 
   useEffect(() => {
-    // Apply theme
     const root = document.documentElement;
-    // Apply vars
     Object.entries(currentTheme.vars).forEach(([key, value]) => {
       // @ts-ignore
       root.style.setProperty(key, value);
@@ -53,7 +51,6 @@ const App: React.FC = () => {
   };
 
   const filteredSites = sites.filter(site => {
-    // Category Filter
     if (filter !== 'all') {
       if (filter === 'custom') {
          if (site.c !== 'custom') return false; 
@@ -64,7 +61,6 @@ const App: React.FC = () => {
       }
     }
     
-    // Search Filter
     if (search) {
       const lowerSearch = search.toLowerCase();
       const inName = site.n.toLowerCase().includes(lowerSearch);
@@ -76,44 +72,30 @@ const App: React.FC = () => {
   });
 
   const sortedSites = [...filteredSites].sort((a, b) => {
-    // 1. Pinned (Absolute Top)
     if (a.pinned !== b.pinned) {
         return a.pinned ? -1 : 1;
     }
-
-    // Rating Logic
     const rA = a.rating || 0;
     const rB = b.rating || 0;
-
-    // Define categories:
-    // Good: Rating > 2 OR Rating is 0/undefined (New/Unrated sites start in middle)
-    // Bad: Rating is 1 or 2
     const isBadA = rA > 0 && rA <= 2;
     const isBadB = rB > 0 && rB <= 2;
 
-    // 2. Sink bad ratings to bottom
     if (isBadA !== isBadB) {
-        return isBadA ? 1 : -1; // If A is bad, move it down (1). If B is bad, move A up (-1).
+        return isBadA ? 1 : -1;
     }
-
-    // 3. Keep existing insertion order for everything else (Stable Sort)
-    // or optionally sort good ratings by score
-    // if (rA !== rB) return rB - rA; 
-
     return 0;
   });
 
-  const handleAddTag = (url: string) => {
+  const handleAddTag = async (url: string) => {
     const tag = prompt("输入新标签:");
     if (tag) {
-      const newSites = sites.map(s => {
-        if (s.u === url) {
-          return { ...s, t: [...s.t, tag] };
-        }
-        return s;
-      });
-      setSites(newSites);
-      saveSites(newSites);
+      const target = sites.find(s => s.u === url);
+      if (target) {
+        const updatedSite = { ...target, t: [...target.t, tag] };
+        // Optimistic update
+        setSites(sites.map(s => s.u === url ? updatedSite : s));
+        await updateSite(updatedSite);
+      }
     }
   };
 
@@ -133,83 +115,74 @@ const App: React.FC = () => {
     }
   };
 
-  const handleRate = (rating: number) => {
+  const handleRate = async (rating: number) => {
     if (!contextMenu.siteUrl) return;
-    const newSites = sites.map(s => {
-      if (s.u === contextMenu.siteUrl) {
-        return { ...s, rating };
-      }
-      return s;
-    });
-    setSites(newSites);
-    saveSites(newSites);
-    closeContextMenu();
-  };
-
-  const handlePin = () => {
-    if (!isAdmin || !contextMenu.siteUrl) return;
-    const newSites = sites.map(s => {
-      if (s.u === contextMenu.siteUrl) {
-        return { ...s, pinned: !s.pinned };
-      }
-      return s;
-    });
-    setSites(newSites);
-    saveSites(newSites);
-    closeContextMenu();
-  };
-
-  const handleDelete = () => {
-    if (!isAdmin || !contextMenu.siteUrl) return;
-    if (confirm("确定删除此网站？")) {
-      const newSites = sites.filter(s => s.u !== contextMenu.siteUrl);
-      setSites(newSites);
-      saveSites(newSites);
-      closeContextMenu();
+    const target = sites.find(s => s.u === contextMenu.siteUrl);
+    if (target) {
+        const updatedSite = { ...target, rating };
+        setSites(sites.map(s => s.u === contextMenu.siteUrl ? updatedSite : s));
+        closeContextMenu();
+        await updateSite(updatedSite);
     }
   };
 
-  const handleRename = () => {
+  const handlePin = async () => {
+    if (!isAdmin || !contextMenu.siteUrl) return;
+    const target = sites.find(s => s.u === contextMenu.siteUrl);
+    if (target) {
+        const updatedSite = { ...target, pinned: !target.pinned };
+        setSites(sites.map(s => s.u === contextMenu.siteUrl ? updatedSite : s));
+        closeContextMenu();
+        await updateSite(updatedSite);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!isAdmin || !contextMenu.siteUrl) return;
+    if (confirm("确定删除此网站？")) {
+      const target = sites.find(s => s.u === contextMenu.siteUrl);
+      if (target && target.objectId) {
+          setSites(sites.filter(s => s.u !== contextMenu.siteUrl));
+          closeContextMenu();
+          await deleteSite(target.objectId);
+      }
+    }
+  };
+
+  const handleRename = async () => {
     if (!contextMenu.siteUrl) return;
     const newName = prompt("输入新名称:");
     if (newName) {
-       const newSites = sites.map(s => {
-        if (s.u === contextMenu.siteUrl) {
-          return { ...s, n: newName };
-        }
-        return s;
-      });
-      setSites(newSites);
-      saveSites(newSites);
-      closeContextMenu();
+       const target = sites.find(s => s.u === contextMenu.siteUrl);
+       if (target) {
+           const updatedSite = { ...target, n: newName };
+           setSites(sites.map(s => s.u === contextMenu.siteUrl ? updatedSite : s));
+           closeContextMenu();
+           await updateSite(updatedSite);
+       }
     }
   };
 
-  const handleManageTags = () => {
+  const handleManageTags = async () => {
     if (!isAdmin || !contextMenu.siteUrl) return;
     const site = sites.find(s => s.u === contextMenu.siteUrl);
     if (!site) return;
     const newTagsStr = prompt("编辑标签 (逗号分隔，留空则清空):", site.t.join(", "));
     if (newTagsStr !== null) {
       const newTagsArr = newTagsStr.trim() ? newTagsStr.split(/,|，/).map(s => s.trim()) : [];
-       const newSites = sites.map(s => {
-        if (s.u === contextMenu.siteUrl) {
-          return { ...s, t: newTagsArr };
-        }
-        return s;
-      });
-      setSites(newSites);
-      saveSites(newSites);
+      const updatedSite = { ...site, t: newTagsArr };
+      setSites(sites.map(s => s.u === contextMenu.siteUrl ? updatedSite : s));
       closeContextMenu();
+      await updateSite(updatedSite);
     }
   };
 
-  const submitNewSite = () => {
+  const submitNewSite = async () => {
     if (!newUrl || !newName) return alert("请输入名称和网址");
     let formattedUrl = newUrl;
     if (!formattedUrl.startsWith('http')) formattedUrl = 'https://' + formattedUrl;
 
-    const newSite: Site = {
+    const tempSite: Site = {
       n: newName,
       u: formattedUrl,
       c: newCat,
@@ -218,16 +191,22 @@ const App: React.FC = () => {
       pinned: false
     };
 
-    // Add new site to the BEGINNING of the list so it appears first
-    const newSites = [newSite, ...sites];
-    setSites(newSites);
-    saveSites(newSites);
+    // Optimistic UI update (add to top)
+    setSites([tempSite, ...sites]);
     setShowAddModal(false);
     setNewUrl('');
     setNewName('');
     setNewTags('');
-    alert("添加成功！");
     setFilter('custom');
+    alert("添加成功！正在同步到云端...");
+
+    try {
+        const created = await createSite(tempSite);
+        // Replace temp site with real one containing objectId
+        setSites(prev => prev.map(s => s.u === tempSite.u ? created : s));
+    } catch(e) {
+        alert("云端同步失败，请检查网络");
+    }
   };
 
   const autoFillName = () => {
@@ -239,14 +218,12 @@ const App: React.FC = () => {
      }
   };
 
-  // Click outside listener for context menu
   useEffect(() => {
     const handleClick = () => closeContextMenu();
     window.addEventListener('click', handleClick);
     return () => window.removeEventListener('click', handleClick);
   }, [contextMenu]);
 
-  // Determine if the currently right-clicked site is pinned
   const currentSite = sites.find(s => s.u === contextMenu.siteUrl);
   const isPinned = currentSite?.pinned;
 
@@ -289,9 +266,9 @@ const App: React.FC = () => {
 
           <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3.5">
-              {sortedSites.map((site) => (
+              {sortedSites.map((site, index) => (
                 <SiteCard 
-                  key={site.u} 
+                  key={site.objectId || site.u + index} 
                   site={site} 
                   onTagAdd={handleAddTag} 
                   onContextMenu={handleContextMenu}
@@ -310,7 +287,6 @@ const App: React.FC = () => {
         </main>
       </div>
 
-      {/* Add Modal */}
       {showAddModal && (
         <div className="fixed inset-0 bg-black/80 z-[200] flex items-center justify-center" onClick={() => setShowAddModal(false)}>
           <div className="bg-[#222] p-6 rounded-2xl w-[380px] border border-white/20 text-white" onClick={e => e.stopPropagation()}>
@@ -358,7 +334,6 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Context Menu */}
       {contextMenu.visible && (
         <div 
           className="fixed bg-[#222] border border-[#444] rounded-lg p-1.5 z-[100] shadow-xl w-[140px]"

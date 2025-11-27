@@ -1,7 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Site, ContextMenuState, CategoryFilter } from './types';
 import { THEMES } from './constants';
-import { initCloud, fetchSites, createSite, updateSite, deleteSite } from './services/storageService';
+import { 
+  initCloud, 
+  fetchSites, 
+  createSite, 
+  updateSite, 
+  deleteSite 
+} from './services/storageService';
 import AuroraBackground from './components/AuroraBackground';
 import AuthScreen from './components/AuthScreen';
 import Sidebar from './components/Sidebar';
@@ -26,9 +32,13 @@ const App: React.FC = () => {
   const [newCat, setNewCat] = useState('custom');
 
   useEffect(() => {
-    // Initialize Cloud and Load Data
+    // 1. Initialize Cloud SDK
     initCloud();
-    fetchSites().then(data => setSites(data));
+    
+    // 2. Fetch Data
+    fetchSites().then(data => {
+      setSites(data);
+    });
   }, []);
 
   const currentTheme = THEMES[themeIndex];
@@ -53,6 +63,7 @@ const App: React.FC = () => {
   const filteredSites = sites.filter(site => {
     if (filter !== 'all') {
       if (filter === 'custom') {
+         // Custom filter logic can be adjusted if needed
          if (site.c !== 'custom') return false; 
       } else if (filter === '5star') {
         if ((site.rating || 0) !== 5) return false;
@@ -72,9 +83,11 @@ const App: React.FC = () => {
   });
 
   const sortedSites = [...filteredSites].sort((a, b) => {
+    // 1. Pinned items first
     if (a.pinned !== b.pinned) {
         return a.pinned ? -1 : 1;
     }
+    // 2. Rating sorting (avoid 1-2 stars unless at bottom)
     const rA = a.rating || 0;
     const rB = b.rating || 0;
     const isBadA = rA > 0 && rA <= 2;
@@ -83,6 +96,7 @@ const App: React.FC = () => {
     if (isBadA !== isBadB) {
         return isBadA ? 1 : -1;
     }
+    // Default order
     return 0;
   });
 
@@ -202,9 +216,10 @@ const App: React.FC = () => {
 
     try {
         const created = await createSite(tempSite);
-        // Replace temp site with real one containing objectId
+        // Replace temp site with real one containing objectId from cloud
         setSites(prev => prev.map(s => s.u === tempSite.u ? created : s));
     } catch(e) {
+        console.error(e);
         alert("云端同步失败，请检查网络");
     }
   };

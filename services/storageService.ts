@@ -1,27 +1,152 @@
 import { Site } from '../types';
 import { INITIAL_SITES } from '../constants';
 
-const STORAGE_KEY = 'indie_nav_sites';
+// LeanCloud SDK is loaded via CDN in index.html, creating a global 'AV' object.
+// We declare it here to satisfy TypeScript.
+declare global {
+  interface Window {
+    AV: any;
+  }
+}
 
-export const getSites = (): Site[] => {
+const APP_ID = "MTbnlF1EcKYgifi6nWsjLK3v-MdYXbMMI";
+const APP_KEY = "iPMUnJbKplRokq3h4SUPdpMT";
+const SERVER_URL = "https://mtbnlf1e.api.lncldglobal.com";
+
+// --- Internal Helper: Lazy Initialize LeanCloud ---
+const getAV = () => {
+  const AV = window.AV;
+  if (typeof AV === 'undefined') {
+    console.error("LeanCloud SDK not loaded. Check index.html script tags.");
+    return null;
+  }
+  
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      return JSON.parse(stored);
+    // Check if already initialized to avoid re-init errors
+    if (!AV.applicationId) {
+      AV.init({
+        appId: APP_ID,
+        appKey: APP_KEY,
+        serverURL: SERVER_URL
+      });
+      console.log("LeanCloud initialized.");
     }
-    // Initialize if empty
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_SITES));
-    return INITIAL_SITES;
+    return AV;
   } catch (e) {
-    console.error("Failed to load sites from local storage", e);
+    console.log("LeanCloud init check error:", e);
+    // Return AV anyway in case it was initialized elsewhere
+    return AV;
+  }
+};
+
+// --- Internal Helper: Seed Data ---
+const seedInitialData = async () => {
+  const AV = getAV();
+  if (!AV) return;
+
+  console.log("Seeding initial data to Cloud...");
+  const objects = INITIAL_SITES.map(site => {
+    const obj = new AV.Object('Sites');
+    obj.set('name', site.n);
+    obj.set('url', site.u);
+    obj.set('category', site.c);
+    obj.set('icon', JSON.stringify(site.t)); // Storing tags in 'icon' field
+    obj.set('rating', site.rating || 0);
+    obj.set('pinned', site.pinned || false);
+    return obj;
+  });
+
+  try {
+    await AV.Object.saveAll(objects);
+    console.log("Seeding complete. Class 'Sites' populated.");
+  } catch (e) {
+    console.error("Seeding failed", e);
+  }
+};
+
+// --- Exported Methods ---
+
+export const fetchSites = async (): Promise<Site[]> => {
+  const AV = getAV();
+  if (!AV) return INITIAL_SITES;
+
+  try {
+    const query = new AV.Query('Sites');
+    query.limit(1000);
+    const results = await query.find();
+
+    // If database is empty, seed it and return initial data
+    if (results.length === 0) {
+      console.log("No sites found in cloud. Seeding...");
+      await seedInitialData();
+      return INITIAL_SITES;
+    }
+
+    // Map Cloud Objects to Site Interface
+    return results.map((obj: any) => ({
+      objectId: obj.id,
+      n: obj.get('name'),
+      u: obj.get('url'),
+      c: obj.get('category'),
+      t: JSON.parse(obj.get('icon') || '[]'),
+      rating: obj.get('rating') || 0,
+      pinned: obj.get('pinned') || false
+    }));
+
+  } catch (error: any) {
+    // Error 101: Class not found (database empty/new)
+    if (error.code === 101) {
+      console.log("Class 'Sites' not found. Creating and seeding...");
+      await seedInitialData();
+      return INITIAL_SITES;
+    }
+    console.error("Fetch sites failed:", error);
     return INITIAL_SITES;
   }
 };
 
-export const saveSites = (sites: Site[]): void => {
+export const createSite = async (site: Site): Promise<Site> => {
+  const AV = getAV();
+  if (!AV) throw new Error("Cloud not initialized");
+
+  const obj = new AV.Object('Sites');
+  obj.set('name', site.n);
+  obj.set('url', site.u);
+  obj.set('category', site.c);
+  obj.set('icon', JSON.stringify(site.t));
+  obj.set('rating', site.rating || 0);
+  obj.set('pinned', site.pinned || false);
+
+  const saved = await obj.save();
+  return { ...site, objectId: saved.id };
+};
+
+export const updateSite = async (site: Site): Promise<void> => {
+  const AV = getAV();
+  if (!AV || !site.objectId) return;
+
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(sites));
+    const obj = AV.Object.createWithoutData('Sites', site.objectId);
+    obj.set('name', site.n);
+    obj.set('url', site.u);
+    obj.set('category', site.c);
+    obj.set('icon', JSON.stringify(site.t));
+    obj.set('rating', site.rating || 0);
+    obj.set('pinned', site.pinned || false);
+    await obj.save();
   } catch (e) {
-    console.error("Failed to save sites to local storage", e);
+    console.error("Failed to update site", e);
+  }
+};
+
+export const deleteSite = async (siteId: string): Promise<void> => {
+  const AV = getAV();
+  if (!AV) return;
+
+  try {
+    const obj = AV.Object.createWithoutData('Sites', siteId);
+    await obj.destroy();
+  } catch (e) {
+    console.error("Failed to delete site", e);
   }
 };

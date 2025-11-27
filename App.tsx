@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Site, ContextMenuState, CategoryFilter } from './types';
 import { THEMES } from './constants';
 import { 
-  initCloud, 
   fetchSites, 
   createSite, 
   updateSite, 
@@ -32,10 +31,7 @@ const App: React.FC = () => {
   const [newCat, setNewCat] = useState('custom');
 
   useEffect(() => {
-    // 1. Initialize Cloud SDK
-    initCloud();
-    
-    // 2. Fetch Data
+    // Fetch Data (initializes Cloud internally)
     fetchSites().then(data => {
       setSites(data);
     });
